@@ -3,7 +3,9 @@ import { api } from "../../../../convex/_generated/api";
 import { NextRequest, NextResponse } from "next/server";
 import { Id } from "../../../../convex/_generated/dataModel";
 
-const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function getClient() {
+  return new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+}
 
 /**
  * POST /api/approve
@@ -11,6 +13,7 @@ const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
  * Body: { "approvalId": "...", "decision": "approve" | "deny" }
  */
 export async function POST(req: NextRequest) {
+  const client = getClient();
   const body = await req.json();
   const { approvalId, decision } = body;
 

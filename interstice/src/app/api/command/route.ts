@@ -2,7 +2,9 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+function getClient() {
+  return new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+}
 
 /**
  * POST /api/command
@@ -10,6 +12,7 @@ const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
  * Body: { "command": "Do a competitive analysis..." }
  */
 export async function POST(req: NextRequest) {
+  const client = getClient();
   const body = await req.json();
   const { command } = body;
 
