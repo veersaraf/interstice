@@ -119,3 +119,11 @@ export const getAllPending = query({
       .collect();
   },
 });
+
+// Get a single task by ID
+export const get = query({
+  args: { id: v.id("tasks") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
