@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone:*)",
+      "Bash(cp -r temp_clone/.git .)",
+      "Bash(cp -r temp_clone/* .)",
+      "Bash(cp -r temp_clone/.* .)",
+      "Bash(rm -rf temp_clone)",
+      "Bash(git push:*)"
+    ]
+  }
+}
