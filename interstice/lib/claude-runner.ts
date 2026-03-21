@@ -2,7 +2,7 @@ import { spawn } from "child_process";
 import path from "path";
 
 export interface ClaudeEvent {
-  type: "system" | "assistant" | "result";
+  type: string; // system, assistant, result, rate_limit_event, etc.
   subtype?: string;
   session_id?: string;
   model?: string;
@@ -10,6 +10,7 @@ export interface ClaudeEvent {
     content: Array<{ type: string; text?: string }>;
   };
   result?: string;
+  total_cost_usd?: number;
   usage?: {
     input_tokens: number;
     output_tokens: number;
@@ -29,26 +30,15 @@ export interface RunResult {
   events: ClaudeEvent[];
 }
 
-// Path to claude CLI — adjust if needed
+// Path to claude CLI
 const CLAUDE_BIN =
   process.env.CLAUDE_BIN ||
   (process.platform === "win32"
-    ? path.join(
-        process.env.APPDATA || "",
-        "npm",
-        "claude.cmd"
-      )
+    ? path.join(process.env.APPDATA || "", "npm", "claude.cmd")
     : "claude");
 
 /**
  * Run a Claude CLI subprocess for an agent.
- *
- * Replicates Paperclip's claude-local adapter:
- * - Spawns `claude --print - --output-format stream-json`
- * - Pipes prompt to stdin
- * - Parses streaming JSON line-by-line
- * - Captures session_id for --resume on next run
- * - Handles session recovery on failure
  */
 export async function runAgent(opts: {
   prompt: string;
@@ -56,9 +46,18 @@ export async function runAgent(opts: {
   sessionId?: string | null;
   cwd?: string;
   skillsDir?: string;
+  maxTurns?: number;
   onEvent?: (event: ClaudeEvent) => void;
 }): Promise<RunResult> {
-  const { prompt, systemPromptPath, sessionId, cwd, skillsDir, onEvent } = opts;
+  const {
+    prompt,
+    systemPromptPath,
+    sessionId,
+    cwd,
+    skillsDir,
+    maxTurns = 3,
+    onEvent,
+  } = opts;
 
   const args = [
     "--print",
@@ -66,6 +65,8 @@ export async function runAgent(opts: {
     "--output-format",
     "stream-json",
     "--verbose",
+    "--max-turns",
+    String(maxTurns),
   ];
 
   // Resume session if we have one
@@ -81,6 +82,9 @@ export async function runAgent(opts: {
     args.push("--add-dir", skillsDir);
   }
 
+  console.log(`[claude-runner] Spawning: claude ${args.join(" ")}`);
+  console.log(`[claude-runner] Prompt: ${prompt.substring(0, 100)}...`);
+
   return new Promise((resolve, reject) => {
     const proc = spawn(CLAUDE_BIN, args, {
       cwd: cwd || process.cwd(),
@@ -95,16 +99,29 @@ export async function runAgent(opts: {
     const events: ClaudeEvent[] = [];
     let stderrOutput = "";
 
+    // Buffer for incomplete JSON lines
+    let buffer = "";
+
     proc.stdout.on("data", (data: Buffer) => {
-      const lines = data.toString().split("\n").filter(Boolean);
+      buffer += data.toString();
+      const lines = buffer.split("\n");
+      // Keep the last incomplete line in the buffer
+      buffer = lines.pop() || "";
+
       for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
         try {
-          const event: ClaudeEvent = JSON.parse(line);
+          const event: ClaudeEvent = JSON.parse(trimmed);
           events.push(event);
 
           // Capture session_id from system init event
           if (event.type === "system" && event.subtype === "init") {
             capturedSessionId = event.session_id || null;
+            console.log(
+              `[claude-runner] Session: ${capturedSessionId}`
+            );
           }
 
           // Capture assistant text output
@@ -119,16 +136,19 @@ export async function runAgent(opts: {
           // Capture result (final event)
           if (event.type === "result") {
             capturedSessionId = event.session_id || capturedSessionId;
-            if (event.usage) {
-              usage = {
-                inputTokens: event.usage.input_tokens,
-                outputTokens: event.usage.output_tokens,
-                costUsd: event.cost_usd || 0,
-              };
-            }
             if (event.result) {
               outputText = event.result;
             }
+            const costUsd =
+              event.total_cost_usd || event.cost_usd || 0;
+            usage = {
+              inputTokens: event.usage?.input_tokens || 0,
+              outputTokens: event.usage?.output_tokens || 0,
+              costUsd,
+            };
+            console.log(
+              `[claude-runner] Result received. Output length: ${outputText.length}`
+            );
           }
 
           // Fire callback for real-time streaming
@@ -136,7 +156,7 @@ export async function runAgent(opts: {
             onEvent(event);
           }
         } catch {
-          // Not JSON — might be raw text, ignore
+          // Not JSON — ignore
         }
       }
     });
@@ -146,22 +166,22 @@ export async function runAgent(opts: {
     });
 
     proc.on("close", (code) => {
+      console.log(
+        `[claude-runner] Process exited with code ${code}. Output: ${outputText.length} chars`
+      );
+
       if (code !== 0 && isUnknownSessionError(stderrOutput) && sessionId) {
-        // Session recovery: retry without --resume
         console.log(
           `[claude-runner] Session ${sessionId} expired, retrying fresh...`
         );
-        runAgent({
-          ...opts,
-          sessionId: null,
-          onEvent,
-        })
+        runAgent({ ...opts, sessionId: null, onEvent })
           .then(resolve)
           .catch(reject);
         return;
       }
 
       if (code !== 0 && !outputText) {
+        console.error(`[claude-runner] stderr: ${stderrOutput}`);
         reject(
           new Error(
             `Claude CLI exited with code ${code}: ${stderrOutput}`
@@ -188,10 +208,6 @@ export async function runAgent(opts: {
   });
 }
 
-/**
- * Check if the error indicates an unknown/expired session.
- * Mirrors Paperclip's isClaudeUnknownSessionError().
- */
 function isUnknownSessionError(stderr: string): boolean {
   return (
     stderr.includes("Unknown session") ||
@@ -200,9 +216,6 @@ function isUnknownSessionError(stderr: string): boolean {
   );
 }
 
-/**
- * Ensure node and npm are in PATH on Windows.
- */
 function getFixedPath(): string {
   const currentPath = process.env.PATH || "";
   if (process.platform === "win32") {

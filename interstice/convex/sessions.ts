@@ -34,3 +34,13 @@ export const getForAgent = query({
       .first();
   },
 });
+
+export const clearAll = mutation({
+  handler: async (ctx) => {
+    const sessions = await ctx.db.query("sessions").collect();
+    for (const session of sessions) {
+      await ctx.db.delete(session._id);
+    }
+    return { cleared: sessions.length };
+  },
+});

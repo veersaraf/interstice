@@ -138,12 +138,16 @@ async function runAgentTask(
     );
 
     // Run Claude CLI
+    // CEO just outputs JSON delegation — 1 turn. Specialists may use tools — 5 turns.
+    const maxTurns = agent.name === "ceo" ? 1 : 5;
+
     const result = await runAgent({
       prompt,
       systemPromptPath,
       sessionId:
         session?.cwd === PROJECT_ROOT ? session.claudeSessionId : null,
       cwd: PROJECT_ROOT,
+      maxTurns,
       onEvent: async (event) => {
         // Stream assistant output to activity log in real-time
         if (event.type === "assistant" && event.message?.content) {
