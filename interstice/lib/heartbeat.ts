@@ -295,14 +295,32 @@ async function runAgentTask(
       }
     }
 
+    // === DEVELOPER: Parse output and write files to disk ===
+    // Developer agent uses Write tool to write files directly; this post-processes
+    // the output to catch any code blocks with filename hints and report written paths.
+    let finalOutput = result.output || "";
+    if (agent.name === "developer" && finalOutput) {
+      const writtenFiles = handleDeveloperOutput(finalOutput);
+      if (writtenFiles.length > 0) {
+        const fileList = writtenFiles.join(", ");
+        finalOutput += `\n\n**Files written to disk:** ${fileList}`;
+        await client.mutation(api.activity.log, {
+          agentId: agent._id,
+          action: "files_written",
+          content: `Developer wrote ${writtenFiles.length} file(s): ${fileList}`,
+          taskId: task._id,
+        });
+      }
+    }
+
     // === NON-CEO: Post findings + update company memory ===
-    if (agent.name !== "ceo" && result.output) {
+    if (agent.name !== "ceo" && finalOutput) {
       // Post to findings channel (other agents read this)
       await client.mutation(api.findings.post, {
         agentId: agent._id,
         taskId: task._id,
-        content: result.output,
-        summary: result.output.substring(0, 200),
+        content: finalOutput,
+        summary: finalOutput.substring(0, 200),
       });
 
       // Log inter-agent data sharing
@@ -314,13 +332,13 @@ async function runAgentTask(
       });
 
       // Append to company memory
-      appendToCompanyMemory(agent, task, result.output);
+      appendToCompanyMemory(agent, task, finalOutput);
     }
 
     // === APPROVAL GATE ===
     // Comms and Call agents' outputs go through approval before "sending"
-    if (APPROVAL_AGENTS.includes(agent.name) && result.output) {
-      const needsApproval = detectApprovalNeeded(agent, task, result.output);
+    if (APPROVAL_AGENTS.includes(agent.name) && finalOutput) {
+      const needsApproval = detectApprovalNeeded(agent, task, finalOutput);
 
       if (needsApproval) {
         // Create approval record
@@ -352,7 +370,7 @@ async function runAgentTask(
     // Complete the task
     await client.mutation(api.tasks.complete, {
       taskId: task._id,
-      output: result.output,
+      output: finalOutput,
     });
 
     await client.mutation(api.activity.log, {
@@ -688,6 +706,74 @@ Do NOT output any JSON. Speak directly to the user.`;
 }
 
 /**
+ * Parse developer agent output for code blocks with filename hints.
+ * Writes any unwritten files to the output/ directory and returns all
+ * output/ paths that exist on disk (written by agent tool or by us).
+ */
+function handleDeveloperOutput(output: string): string[] {
+  const outputDir = path.resolve(PROJECT_ROOT, "output");
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  const written: string[] = [];
+
+  // Match code blocks that include a filename hint in a comment on the first line.
+  // Supported patterns:
+  //   ```html\n<!-- filename: output/index.html -->\n<code>\n```
+  //   ```ts\n// filename: output/app.ts\n<code>\n```
+  const codeBlockRe =
+    /```\w*\n(?:(?:\/\/|<!--)\s*filename:\s*(output\/[\w.\-/]+)\s*(?:-->)?\n)([\s\S]*?)```/g;
+  let m: RegExpExecArray | null;
+  while ((m = codeBlockRe.exec(output)) !== null) {
+    const rel = m[1].trim();
+    const code = m[2];
+    const abs = path.resolve(PROJECT_ROOT, rel);
+    try {
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, code, "utf-8");
+      written.push(rel);
+      console.log(`[heartbeat] Developer wrote: ${rel}`);
+    } catch (err) {
+      console.error(`[heartbeat] Failed to write ${rel}:`, err);
+    }
+  }
+
+  // Also collect any output/ paths mentioned in the text that already exist on disk
+  // (written by the agent's own Write tool).
+  const mentioned = [...new Set(output.match(/output\/[\w.\-/]+\.\w+/g) ?? [])];
+  for (const rel of mentioned) {
+    if (!written.includes(rel) && fs.existsSync(path.resolve(PROJECT_ROOT, rel))) {
+      written.push(rel);
+    }
+  }
+
+  return written;
+}
+
+/**
+ * Parse a comms agent email draft into structured fields.
+ * Matches the output format defined in agents/comms.md.
+ */
+function parseEmailDraft(
+  output: string
+): { to: string; subject: string; body: string } | null {
+  const toMatch = output.match(/\*\*To:\*\*\s*(.+)/);
+  const subjectMatch = output.match(/\*\*Subject:\*\*\s*(.+)/);
+  if (!toMatch || !subjectMatch) return null;
+
+  // Body is the text between the Subject line and the --- separator (or end)
+  const bodyMatch = output.match(
+    /\*\*Subject:\*\*[^\n]*\n\n([\s\S]+?)(?:\n---|\n\*\*Status:)/
+  );
+  return {
+    to: toMatch[1].trim(),
+    subject: subjectMatch[1].trim(),
+    body: bodyMatch ? bodyMatch[1].trim() : "",
+  };
+}
+
+/**
  * Detect if an agent's output requires human approval before action.
  * Returns null if no approval needed, otherwise returns action details.
  */
@@ -697,20 +783,19 @@ function detectApprovalNeeded(
   output: string
 ): { action: string; details: string } | null {
   if (agent.name === "comms") {
-    // Check if the task involves sending (not just drafting)
+    // Trigger approval if the task involves sending OR the output has an email draft
     const isSendTask =
       task.input.toLowerCase().includes("send") ||
       output.toLowerCase().includes("ready to send") ||
-      output.toLowerCase().includes("awaiting approval");
+      output.toLowerCase().includes("awaiting approval to send");
+    const hasEmailDraft = /\*\*To:\*\*/.test(output) && /\*\*Subject:\*\*/.test(output);
 
-    if (isSendTask) {
-      // Extract email details from output
-      const toMatch = output.match(/\*\*To:\*\*\s*(.+)/);
-      const subjectMatch = output.match(/\*\*Subject:\*\*\s*(.+)/);
-      return {
-        action: "Send Email",
-        details: `To: ${toMatch?.[1] || "unknown"} | Subject: ${subjectMatch?.[1] || "unknown"}\n\n${output.substring(0, 500)}`,
-      };
+    if (isSendTask || hasEmailDraft) {
+      const draft = parseEmailDraft(output);
+      const details = draft
+        ? `To: ${draft.to}\nSubject: ${draft.subject}\n\n${draft.body}`
+        : output.substring(0, 600);
+      return { action: "Send Email", details };
     }
   }
 
