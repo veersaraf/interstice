@@ -1,29 +1,26 @@
 /**
- * Send Email Skill — SMTP via Nodemailer
+ * Send Email Skill — Resend API (primary) or SMTP via Nodemailer (fallback)
  *
  * Usage from CLI: npx tsx skills/send_email.ts "to@example.com" "Subject" "Email body here"
  *
- * The Comms Agent's approved emails are sent via this skill.
+ * Primary: Resend API (just one env var)
+ *   RESEND_API_KEY  — from resend.com/api-keys
  *
- * Required env vars in .env.local:
- *   SMTP_HOST     — SMTP server host (e.g., smtp.gmail.com)
- *   SMTP_PORT     — SMTP port (e.g., 587)
- *   SMTP_USER     — SMTP username / from address
- *   SMTP_PASS     — SMTP password or app password
- *   SMTP_FROM     — Display name + address, e.g., "Interstice CEO <veer@interstice.ai>"
+ * Fallback: SMTP via Nodemailer (if SMTP_HOST is set)
+ *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
  *
- * For Gmail: use an App Password (not your login password).
- * For testing without SMTP: set SMTP_HOST=log to just print the email.
+ * For testing without any provider: leave all vars unset → log mode
  */
 
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587", 10);
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
-const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER || "Interstice <onboarding@resend.dev>";
 
 interface EmailResult {
   success: boolean;
@@ -36,19 +33,77 @@ export async function sendEmail(
   subject: string,
   body: string
 ): Promise<EmailResult> {
-  // Log-only mode for testing
-  if (!SMTP_HOST || SMTP_HOST === "log") {
-    console.log(`[send_email] LOG MODE — would send:`);
-    console.log(`  To: ${to}`);
-    console.log(`  Subject: ${subject}`);
-    console.log(`  Body: ${body.substring(0, 200)}...`);
-    return {
-      success: true,
-      messageId: `log-${Date.now()}`,
-      message: `[LOG MODE] Email logged (no SMTP configured). To: ${to}, Subject: ${subject}`,
-    };
+  // Resend API — primary path
+  if (RESEND_API_KEY) {
+    return sendViaResend(to, subject, body);
   }
 
+  // SMTP — fallback path
+  if (SMTP_HOST && SMTP_HOST !== "log") {
+    return sendViaSMTP(to, subject, body);
+  }
+
+  // Log-only mode
+  console.log(`[send_email] LOG MODE — would send:`);
+  console.log(`  To: ${to}`);
+  console.log(`  Subject: ${subject}`);
+  console.log(`  Body: ${body.substring(0, 200)}...`);
+  return {
+    success: true,
+    messageId: `log-${Date.now()}`,
+    message: `[LOG MODE] Email logged (no email provider configured). To: ${to}, Subject: ${subject}`,
+  };
+}
+
+async function sendViaResend(
+  to: string,
+  subject: string,
+  body: string
+): Promise<EmailResult> {
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: SMTP_FROM,
+        to: [to],
+        subject,
+        text: body,
+        html: body.replace(/\n/g, "<br>"),
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      return {
+        success: false,
+        message: `Resend API error (${res.status}): ${errBody}`,
+      };
+    }
+
+    const data = await res.json();
+    return {
+      success: true,
+      messageId: data.id,
+      message: `Email sent via Resend. ID: ${data.id}. To: ${to}, Subject: ${subject}`,
+    };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      message: `Resend send failed: ${errMsg}`,
+    };
+  }
+}
+
+async function sendViaSMTP(
+  to: string,
+  subject: string,
+  body: string
+): Promise<EmailResult> {
   if (!SMTP_USER || !SMTP_PASS) {
     return {
       success: false,
@@ -56,7 +111,6 @@ export async function sendEmail(
     };
   }
 
-  // Dynamic import so the skill works even without nodemailer installed
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let nodemailer: any;
   try {
@@ -91,13 +145,13 @@ export async function sendEmail(
     return {
       success: true,
       messageId: info.messageId,
-      message: `Email sent successfully. Message ID: ${info.messageId}. To: ${to}, Subject: ${subject}`,
+      message: `Email sent via SMTP. Message ID: ${info.messageId}. To: ${to}, Subject: ${subject}`,
     };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      message: `ERROR: Failed to send email: ${errMsg}`,
+      message: `SMTP send failed: ${errMsg}`,
     };
   }
 }
