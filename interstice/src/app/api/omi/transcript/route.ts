@@ -8,6 +8,9 @@
  * treat the buffered text as a complete voice command
  * and create a CEO task in Convex.
  *
+ * Voice approval: If the command matches "approve" or "deny",
+ * route it to the approval system instead of creating a new task.
+ *
  * Webhook URL to register in OMI developer console:
  *   https://[ngrok-url]/api/omi/transcript
  *
@@ -17,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
+import { sendOmiNotification } from "../../../../../lib/omi";
 
 interface TranscriptSegment {
   text?: string;
@@ -38,17 +42,96 @@ const sessionBuffers = new Map<string, SessionBuffer>();
 const SILENCE_TIMEOUT_MS = 2500; // fire command after 2.5s of no new segments
 const MIN_COMMAND_LENGTH = 5;    // ignore very short fragments
 
+// Voice approval patterns
+const APPROVE_PATTERNS = /^\s*(approve|yes|confirm|go ahead|send it|do it)\s*$/i;
+const DENY_PATTERNS = /^\s*(deny|no|cancel|stop|don't|reject)\s*$/i;
+
 function getConvex() {
   return new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 }
 
-async function fireCommand(uid: string, command: string) {
+/**
+ * Check if the command is an approval/denial voice command.
+ * If there's a pending approval, resolve it and return true.
+ */
+async function tryHandleApprovalVoice(uid: string, command: string): Promise<boolean> {
+  const isApprove = APPROVE_PATTERNS.test(command);
+  const isDeny = DENY_PATTERNS.test(command);
+
+  if (!isApprove && !isDeny) return false;
+
+  const convex = getConvex();
+
+  try {
+    const pendingApprovals = await convex.query(api.approvals.listPending);
+    if (pendingApprovals.length === 0) return false;
+
+    // Resolve the most recent pending approval
+    const latest = pendingApprovals[pendingApprovals.length - 1];
+    const decision = isApprove ? "approve" : "deny";
+
+    console.log(`[OMI] Voice ${decision} for approval ${latest._id}: "${command}"`);
+
+    // Call the approve API endpoint to handle post-action execution
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+    const res = await fetch(`${baseUrl}/api/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        approvalId: latest._id,
+        decision,
+      }),
+    });
+
+    if (!res.ok) {
+      console.error(`[OMI] Approval API returned ${res.status}`);
+      await sendOmiNotification(uid, `Failed to ${decision} — please use the dashboard.`);
+      return true;
+    }
+
+    const actionLabel = latest.action || "action";
+    const msg = isApprove
+      ? `Approved: ${actionLabel}. Executing now.`
+      : `Denied: ${actionLabel}. Task cancelled.`;
+
+    await sendOmiNotification(uid, msg);
+
+    await convex.mutation(api.activity.log, {
+      action: `omi_voice_${decision}`,
+      content: `🎤 Voice ${decision}: ${actionLabel}`,
+      taskId: latest.taskId,
+    });
+
+    return true;
+  } catch (err) {
+    console.error("[OMI] Voice approval handling failed:", err);
+    return false;
+  }
+}
+
+async function fireCommand(uid: string, command: string, sessionId: string) {
   if (command.length < MIN_COMMAND_LENGTH) return;
 
   console.log(`[OMI] 🎤 Command from uid=${uid}: "${command}"`);
 
   const convex = getConvex();
 
+  // Track OMI session
+  try {
+    await convex.mutation(api.omi_sessions.upsert, {
+      uid,
+      sessionId,
+      lastTranscript: command,
+    });
+  } catch (err) {
+    console.error("[OMI] Failed to track session:", err);
+  }
+
+  // Check if this is a voice approval/denial
+  const handled = await tryHandleApprovalVoice(uid, command);
+  if (handled) return;
+
+  // Otherwise, create a new CEO task
   try {
     const ceo = await convex.query(api.agents.getByName, { name: "ceo" });
     if (!ceo) {
@@ -116,6 +199,7 @@ export async function POST(req: NextRequest) {
   // Reset silence timer
   if (buffer.timer) clearTimeout(buffer.timer);
 
+  const capturedSessionId = sessionId;
   const capturedBuffer = buffer;
   capturedBuffer.timer = setTimeout(async () => {
     const command = capturedBuffer.text.trim();
@@ -123,7 +207,7 @@ export async function POST(req: NextRequest) {
     capturedBuffer.timer = null;
 
     if (command) {
-      await fireCommand(capturedBuffer.uid, command);
+      await fireCommand(capturedBuffer.uid, command, capturedSessionId);
     }
   }, SILENCE_TIMEOUT_MS);
 

@@ -119,6 +119,20 @@ export default defineSchema({
     ),
   }),
 
+  // OMI user sessions — track active wearable connections
+  omi_sessions: defineTable({
+    uid: v.string(), // OMI user ID
+    sessionId: v.string(), // OMI session ID
+    lastTranscript: v.optional(v.string()),
+    lastActiveAt: v.number(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("inactive")
+    ),
+  })
+    .index("by_uid", ["uid"])
+    .index("by_session", ["sessionId"]),
+
   // Company contacts — people the company knows about
   contacts: defineTable({
     name: v.string(),

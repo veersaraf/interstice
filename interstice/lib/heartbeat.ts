@@ -445,6 +445,22 @@ async function runAgentTask(
           taskId: task._id,
         });
 
+        // Notify OMI user about pending approval
+        if (task.parentTaskId) {
+          try {
+            const parentTask = await client.query(api.tasks.get, { id: task.parentTaskId });
+            if (parentTask) {
+              const omiUid = extractOmiUid(parentTask.input);
+              if (omiUid) {
+                const approvalMsg = `Your ${agent.role} wants to ${needsApproval.action}. Say "approve" or "deny".`;
+                await sendOmiNotification(omiUid, approvalMsg);
+              }
+            }
+          } catch (err) {
+            console.error("[heartbeat] Failed to send OMI approval notification:", err);
+          }
+        }
+
         // Don't mark as done — wait for approval
         await client.mutation(api.heartbeats.succeed, { id: heartbeatId });
         return; // Exit without completing — approval flow handles the rest
