@@ -57,3 +57,34 @@ export const search = query({
       .collect();
   },
 });
+
+// Upsert by name — if a contact with this name exists, update it; otherwise create it.
+// Agents use this to store contact info learned from conversation without duplicating.
+export const upsert = mutation({
+  args: {
+    name: v.string(),
+    role: v.optional(v.string()),
+    company: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    addedBy: v.optional(v.id("agents")),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("contacts")
+      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .first();
+
+    if (existing) {
+      const { name: _name, addedBy: _addedBy, ...updates } = args;
+      const filtered = Object.fromEntries(
+        Object.entries(updates).filter(([, val]) => val !== undefined)
+      );
+      await ctx.db.patch(existing._id, filtered);
+      return existing._id;
+    }
+
+    return await ctx.db.insert("contacts", args);
+  },
+});
