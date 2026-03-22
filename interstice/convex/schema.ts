@@ -86,7 +86,7 @@ export default defineSchema({
     action: v.string(),
     content: v.string(),
     taskId: v.optional(v.id("tasks")),
-  }),
+  }).index("by_task", ["taskId"]),
 
   // Heartbeat run records
   heartbeat_runs: defineTable({

@@ -22,3 +22,14 @@ export const list = query({
       .take(args.limit ?? 50);
   },
 });
+
+export const getByTask = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("activity_log")
+      .withIndex("by_task", (q) => q.eq("taskId", args.taskId))
+      .order("asc")
+      .collect();
+  },
+});

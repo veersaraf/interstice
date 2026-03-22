@@ -3,50 +3,38 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 
 /* ─── Agent Character Config ─────────────────────────────────────── */
 const agentCharacters: Record<string, {
-  emoji: string;
+  avatar: string;
   color: string;
-  bgColor: string;
   idlePos: { x: number; y: number };
-  deskLabel: string;
 }> = {
   CEO: {
-    emoji: "🧑‍💼",
+    avatar: "/avatars/ceo.png",
     color: "#d97706",
-    bgColor: "bg-amber-50",
-    idlePos: { x: 50, y: 20 },
-    deskLabel: "CEO Desk",
+    idlePos: { x: 50, y: 18 },
   },
   Research: {
-    emoji: "🔬",
+    avatar: "/avatars/research.png",
     color: "#2563eb",
-    bgColor: "bg-blue-50",
-    idlePos: { x: 15, y: 55 },
-    deskLabel: "Research Lab",
+    idlePos: { x: 22, y: 48 },
   },
   Communications: {
-    emoji: "✉️",
+    avatar: "/avatars/communications.png",
     color: "#9333ea",
-    bgColor: "bg-purple-50",
-    idlePos: { x: 85, y: 55 },
-    deskLabel: "Comms Hub",
+    idlePos: { x: 68, y: 78 },
   },
   Developer: {
-    emoji: "⌨️",
+    avatar: "/avatars/developer.png",
     color: "#16a34a",
-    bgColor: "bg-emerald-50",
-    idlePos: { x: 15, y: 85 },
-    deskLabel: "Dev Station",
+    idlePos: { x: 30, y: 78 },
   },
   Call: {
-    emoji: "📱",
+    avatar: "/avatars/call.png",
     color: "#ea580c",
-    bgColor: "bg-orange-50",
-    idlePos: { x: 85, y: 85 },
-    deskLabel: "Call Center",
+    idlePos: { x: 75, y: 48 },
   },
 };
 
@@ -64,25 +52,20 @@ function useAgentPositions(agents: Array<{ _id: string; role: string; status: st
       const config = agentCharacters[agent.role];
       if (!config) continue;
 
-      if (agent.status === "active") {
-        // Active agents cluster near CEO for collaboration
-        if (agent.role === "CEO") {
-          newPositions[agent.role] = { x: 50, y: 35 };
-        } else {
-          // Group around CEO when active — huddle formation
-          const activeIndex = activeAgents.filter(a => a.role !== "CEO").indexOf(agent);
-          const total = activeAgents.filter(a => a.role !== "CEO").length;
-          const spread = Math.min(total, 4);
-          const angleStep = 360 / Math.max(spread, 1);
-          const angle = (angleStep * activeIndex - 90) * (Math.PI / 180);
-          const radius = 18;
-          newPositions[agent.role] = {
-            x: 50 + Math.cos(angle) * radius,
-            y: 50 + Math.sin(angle) * (radius * 0.6),
-          };
-        }
+      if (agent.status === "active" && activeAgents.length > 1) {
+        // Multiple active agents → gather around the central meeting table
+        const meetingSeats: Record<string, { x: number; y: number }> = {
+          CEO:            { x: 50, y: 35 },
+          Research:       { x: 38, y: 45 },
+          Call:           { x: 62, y: 45 },
+          Developer:      { x: 38, y: 55 },
+          Communications: { x: 62, y: 55 },
+        };
+        newPositions[agent.role] = meetingSeats[agent.role] ?? { x: 50, y: 48 };
+      } else if (agent.status === "active") {
+        // Single active agent stays at desk
+        newPositions[agent.role] = { ...config.idlePos };
       } else {
-        // Idle agents stay at their desks
         newPositions[agent.role] = { ...config.idlePos };
       }
     }
@@ -94,20 +77,12 @@ function useAgentPositions(agents: Array<{ _id: string; role: string; status: st
 }
 
 /* ─── Speech Bubble ──────────────────────────────────────────────── */
-function SpeechBubble({ text, side = "top" }: { text: string; side?: "top" | "bottom" }) {
+function SpeechBubble({ text }: { text: string }) {
   return (
-    <div className={cn(
-      "absolute left-1/2 z-30 animate-bubble-float pointer-events-none",
-      side === "top" ? "bottom-full mb-3 -translate-x-1/2" : "top-full mt-3 -translate-x-1/2"
-    )}>
-      <div className="relative bg-white text-stone-700 text-[11px] font-medium px-3 py-2 rounded-2xl shadow-md border border-stone-200/80 max-w-[240px] leading-snug">
+    <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 z-30 animate-bubble-float pointer-events-none">
+      <div className="relative bg-white/95 text-stone-700 text-[11px] font-medium px-3 py-2 rounded-2xl shadow-lg border border-stone-200/60 max-w-[220px] leading-snug backdrop-blur-sm">
         {text}
-        <div className={cn(
-          "absolute left-1/2 -translate-x-1/2 w-0 h-0",
-          side === "top"
-            ? "top-full border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-white"
-            : "bottom-full border-l-[6px] border-r-[6px] border-b-[6px] border-transparent border-b-white"
-        )} />
+        <div className="absolute left-1/2 -translate-x-1/2 top-full border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-white/95" />
       </div>
     </div>
   );
@@ -144,99 +119,41 @@ function AgentCharacter({
         <SpeechBubble text={recentMessage.substring(0, 120) + (recentMessage.length > 120 ? "…" : "")} />
       )}
 
-      {/* Character */}
+      {/* Character — large avatar, no container/ring/bg */}
       <div className={cn(
         "relative cursor-pointer group",
         isActive && "animate-bob",
       )}>
-        {/* Shadow */}
-        <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-10 h-2 rounded-full bg-stone-900/5 blur-sm" />
+        {/* Soft floor shadow */}
+        <div className="absolute bottom-[-8px] left-1/2 -translate-x-1/2 w-20 h-4 rounded-full bg-black/15 blur-md" />
 
-        {/* Body */}
-        <div
+        {/* Avatar image — big, clean, no ring or circle */}
+        <img
+          src={config.avatar}
+          alt={agent.role}
           className={cn(
-            "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl transition-all duration-300",
-            "border-2 shadow-sm",
-            config.bgColor,
-            isActive
-              ? "border-green-400 shadow-green-200/50 shadow-md scale-110"
-              : isError
-                ? "border-red-300 shadow-red-200/30 shadow-md"
-                : "border-stone-200/80 hover:border-stone-300 hover:shadow-md",
+            "w-24 h-24 object-contain select-none drop-shadow-lg transition-all duration-300",
+            isActive && "animate-walk scale-110",
+            isError && "opacity-70 grayscale-[30%]",
+            !isActive && !isError && "hover:scale-105",
           )}
-          style={{ borderColor: isActive ? undefined : undefined }}
-        >
-          <span className={cn(
-            "select-none",
-            isActive && "animate-walk",
-          )}>
-            {config.emoji}
-          </span>
-        </div>
+        />
 
-        {/* Status dot */}
-        {isActive && (
-          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-white shadow-sm">
+        {/* Status dot — always visible */}
+        <div className={cn(
+          "absolute top-0 right-0 w-4 h-4 rounded-full border-2 border-white shadow-sm",
+          isActive ? "bg-green-400" : isError ? "bg-red-400" : "bg-stone-400"
+        )}>
+          {isActive && (
             <div className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-40" />
-          </div>
-        )}
-        {isError && (
-          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 border-2 border-white shadow-sm" />
-        )}
-      </div>
-
-      {/* Name tag */}
-      <div className={cn(
-        "mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide text-center whitespace-nowrap shadow-sm",
-        "bg-white border",
-        isActive
-          ? "text-green-700 border-green-200"
-          : isError
-            ? "text-red-600 border-red-200"
-            : "text-stone-500 border-stone-200",
-      )}>
-        {agent.role}
-      </div>
-
-      {/* Task label when active */}
-      {isActive && agent.currentTask && (
-        <div className="mt-1 px-2 py-0.5 rounded-md text-[9px] text-stone-400 bg-white/80 max-w-[120px] truncate text-center border border-stone-100">
-          {agent.currentTask}
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-/* ─── Desk Station (game-style furniture) ────────────────────────── */
-const deskEmoji: Record<string, string> = {
-  CEO: "🪑",
-  Research: "🔬",
-  Communications: "📮",
-  Developer: "🖥️",
-  Call: "☎️",
-};
-
-function DeskMarkers() {
-  return (
-    <>
-      {Object.entries(agentCharacters).map(([role, config]) => (
-        <div
-          key={role}
-          className="absolute transform -translate-x-1/2 pointer-events-none flex flex-col items-center"
-          style={{ left: `${config.idlePos.x}%`, top: `${config.idlePos.y + 7}%` }}
-        >
-          <span className="text-lg opacity-40">{deskEmoji[role] ?? "🪑"}</span>
-          <div className="text-[8px] text-stone-400 font-bold tracking-wider uppercase text-center whitespace-nowrap mt-0.5 bg-white/60 px-1.5 py-0.5 rounded-full">
-            {config.deskLabel}
-          </div>
-        </div>
-      ))}
-    </>
-  );
-}
-
-/* ─── Connection Lines (show when agents are collaborating) ──────── */
+/* ─── Connection Lines ────────────────────────────────────────────── */
 function CollaborationLines({
   agents,
   positions,
@@ -255,9 +172,9 @@ function CollaborationLines({
     <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
       <defs>
         <linearGradient id="collab-line" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="rgba(232, 115, 74, 0.3)" />
+          <stop offset="0%" stopColor="rgba(232, 115, 74, 0.2)" />
           <stop offset="50%" stopColor="rgba(232, 115, 74, 0.5)" />
-          <stop offset="100%" stopColor="rgba(232, 115, 74, 0.3)" />
+          <stop offset="100%" stopColor="rgba(232, 115, 74, 0.2)" />
         </linearGradient>
       </defs>
       {activeSpecialists.map((agent) => {
@@ -349,71 +266,36 @@ export function GameWorld() {
   const inProgressTasks = tasks?.filter(t => t.status === "in_progress").length ?? 0;
 
   return (
-    <div className="relative w-full h-full min-h-[400px] overflow-hidden rounded-2xl border border-stone-200/80 shadow-sm"
-      style={{
-        background: "linear-gradient(180deg, #fef3c7 0%, #fef9ee 25%, #fffbf5 50%, #f5f0e8 100%)",
-      }}
-    >
-      {/* Retro tile floor pattern */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `
-            linear-gradient(45deg, rgba(168,162,158,0.04) 25%, transparent 25%),
-            linear-gradient(-45deg, rgba(168,162,158,0.04) 25%, transparent 25%),
-            linear-gradient(45deg, transparent 75%, rgba(168,162,158,0.04) 75%),
-            linear-gradient(-45deg, transparent 75%, rgba(168,162,158,0.04) 75%)
-          `,
-          backgroundSize: "40px 40px",
-          backgroundPosition: "0 0, 0 20px, 20px -20px, -20px 0px",
-        }}
+    <div className="relative w-full h-full min-h-[400px] overflow-hidden rounded-2xl border border-stone-200/80 shadow-sm">
+      {/* Background image */}
+      <img
+        src="/avatars/bg.png"
+        alt="Interstice HQ"
+        className="absolute inset-0 w-full h-full object-cover"
       />
 
-      {/* Warm ambient glow in center (where agents huddle) */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-amber-200/15 blur-3xl pointer-events-none" />
-
-      {/* Floating sparkles */}
-      {[...Array(8)].map((_, i) => (
-        <div
-          key={i}
-          className="absolute animate-float-dot pointer-events-none"
-          style={{
-            left: `${8 + (i * 13) % 84}%`,
-            top: `${15 + (i * 11) % 65}%`,
-            animationDelay: `${i * 0.7}s`,
-            animationDuration: `${3 + (i % 4)}s`,
-            fontSize: "8px",
-          }}
-        >
-          ✦
-        </div>
-      ))}
-
-      {/* Header — retro nameplate style */}
+      {/* Header overlay */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 py-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 bg-white/70 px-3 py-1 rounded-full backdrop-blur-sm border border-stone-200/40">
           <span className="text-sm">🏢</span>
-          <span className="text-[11px] font-bold text-stone-500 tracking-widest uppercase">
+          <span className="text-[11px] font-bold text-stone-600 tracking-wide">
             Interstice HQ
           </span>
         </div>
         <div className="flex items-center gap-2">
           {inProgressTasks > 0 && (
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-700 bg-blue-50/80 px-2.5 py-1 rounded-full border border-blue-200/60 shadow-sm">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-700 bg-blue-50/90 px-2.5 py-1 rounded-full border border-blue-200/60 shadow-sm backdrop-blur-sm">
               ⚡ {inProgressTasks} running
             </span>
           )}
           {activeCount > 0 && (
-            <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-700 bg-green-50/80 px-2.5 py-1 rounded-full border border-green-200/60 shadow-sm">
+            <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-700 bg-green-50/90 px-2.5 py-1 rounded-full border border-green-200/60 shadow-sm backdrop-blur-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
               {activeCount} active
             </span>
           )}
         </div>
       </div>
-
-      {/* Desk markers */}
-      <DeskMarkers />
 
       {/* Collaboration lines */}
       <CollaborationLines agents={agents} positions={positions} />
@@ -431,14 +313,14 @@ export function GameWorld() {
         );
       })}
 
-      {/* Bottom status bar — retro game HUD */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 px-4 py-2 flex items-center justify-center bg-gradient-to-t from-stone-100/60 to-transparent">
-        <div className="flex items-center gap-3 bg-white/70 px-3 py-1 rounded-full border border-stone-200/60 shadow-sm">
-          <span className="text-[10px] text-stone-500 font-bold">
+      {/* Bottom status bar */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 px-4 py-2 flex items-center justify-center">
+        <div className="flex items-center gap-3 bg-white/70 px-3 py-1 rounded-full border border-stone-200/40 shadow-sm backdrop-blur-sm">
+          <span className="text-[10px] text-stone-600 font-bold">
             👥 {agents.length} agents
           </span>
           <span className="text-stone-300">•</span>
-          <span className="text-[10px] text-stone-400 font-medium">
+          <span className="text-[10px] text-stone-500 font-medium">
             {activeCount > 0 ? `${activeCount} working` : "All idle"}
           </span>
         </div>
