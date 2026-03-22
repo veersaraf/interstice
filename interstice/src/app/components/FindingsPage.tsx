@@ -11,7 +11,6 @@ import {
   BarChart3,
   Download,
   ExternalLink,
-  UserPlus,
   Eye,
 } from "lucide-react";
 import { useState, useMemo } from "react";
@@ -60,7 +59,7 @@ export function FindingsPage() {
   const agents = useQuery(api.agents.list);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [showAddAgent, setShowAddAgent] = useState(false);
+
 
   // Filter to tasks that have output
   const tasksWithOutput = useMemo(() => {
@@ -133,30 +132,7 @@ export function FindingsPage() {
             {tasksWithOutput.length} output{tasksWithOutput.length !== 1 ? "s" : ""}
           </span>
         </div>
-        <button
-          onClick={() => setShowAddAgent(!showAddAgent)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-primary text-white hover:bg-primary/90 transition-colors"
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          Add team member
-        </button>
       </div>
-
-      {/* Add agent panel */}
-      {showAddAgent && (
-        <Card className="p-4">
-          <p className="text-xs font-semibold text-foreground mb-2">Add a new team member</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            To add a new agent to your team, go to the <strong>Your Team</strong> page where you can configure agent roles, models, and capabilities.
-          </p>
-          <button
-            onClick={() => setShowAddAgent(false)}
-            className="text-xs text-primary hover:text-primary/80 font-medium"
-          >
-            Dismiss
-          </button>
-        </Card>
-      )}
 
       {tasksWithOutput.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -189,7 +165,7 @@ export function FindingsPage() {
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     {agent && (
                       <div className={cn(
-                        "w-7 h-7 rounded-md flex items-center justify-center shrink-0",
+                        "w-9 h-9 rounded-md flex items-center justify-center shrink-0",
                         roleDimBg[role] ?? "bg-stone-50"
                       )}>
                         <img src={roleAvatar[role] ?? ""} alt={role} className="w-full h-full object-cover rounded-md" />

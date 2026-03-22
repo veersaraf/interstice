@@ -3,19 +3,19 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
-import { Network, Zap, AlertCircle, Clock, FileText, Cpu, Settings } from "lucide-react";
+import { Network, Zap, AlertCircle, Clock, FileText, Cpu, Settings, Users, Bot, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 
-const roleConfig: Record<string, { initials: string; color: string; dimBg: string; ring: string }> = {
-  CEO:            { initials: "CEO", color: "text-amber-700",   dimBg: "bg-amber-50",   ring: "ring-amber-300" },
-  Research:       { initials: "RES", color: "text-blue-700",    dimBg: "bg-blue-50",    ring: "ring-blue-300" },
-  Communications: { initials: "COM", color: "text-purple-700",  dimBg: "bg-purple-50",  ring: "ring-purple-300" },
-  Developer:      { initials: "DEV", color: "text-emerald-700", dimBg: "bg-emerald-50", ring: "ring-emerald-300" },
-  Call:           { initials: "CAL", color: "text-orange-700",  dimBg: "bg-orange-50",  ring: "ring-orange-300" },
+const roleConfig: Record<string, { avatar: string; color: string; dimBg: string; ring: string }> = {
+  CEO:            { avatar: "/avatars/ceo.png",            color: "text-amber-700",   dimBg: "bg-amber-50",   ring: "ring-amber-300" },
+  Research:       { avatar: "/avatars/research.png",       color: "text-blue-700",    dimBg: "bg-blue-50",    ring: "ring-blue-300" },
+  Communications: { avatar: "/avatars/communications.png", color: "text-purple-700",  dimBg: "bg-purple-50",  ring: "ring-purple-300" },
+  Developer:      { avatar: "/avatars/developer.png",      color: "text-emerald-700", dimBg: "bg-emerald-50", ring: "ring-emerald-300" },
+  Call:           { avatar: "/avatars/call.png",           color: "text-orange-700",  dimBg: "bg-orange-50",  ring: "ring-orange-300" },
 };
 
 const claudeModels = [
@@ -121,19 +121,27 @@ export function AgentsPage() {
   return (
     <div className="max-w-[1100px] space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-2.5">
-        <Network className="w-4 h-4 text-muted-foreground" />
-        <h1 className="text-sm font-semibold text-foreground">Agents</h1>
-        <span className="text-[11px] text-muted-foreground font-medium">{agents.length} total</span>
-        {activeCount > 0 && (
-          <Badge variant="success">{activeCount} active</Badge>
-        )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <Users className="w-5 h-5 text-amber-600" />
+          <h1 className="text-sm font-semibold text-foreground">Your Team</h1>
+          <span className="text-[11px] text-muted-foreground font-medium">{agents.length} total</span>
+          {activeCount > 0 && (
+            <Badge variant="success">{activeCount} active</Badge>
+          )}
+        </div>
+        <button
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-primary text-white hover:bg-primary/90 transition-colors"
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          Add team member
+        </button>
       </div>
 
       {/* Agent cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {agents.map((agent) => {
-          const cfg = roleConfig[agent.role] ?? { initials: "??", color: "text-stone-500", dimBg: "bg-stone-50", ring: "ring-stone-300" };
+          const cfg = roleConfig[agent.role] ?? { avatar: "", color: "text-stone-500", dimBg: "bg-stone-50", ring: "ring-stone-300" };
           const isActive = agent.status === "active";
           const isError = agent.status === "error";
           const agentTasks = tasks?.filter((t) => t.agentId === agent._id) ?? [];
@@ -157,10 +165,14 @@ export function AgentsPage() {
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="relative shrink-0">
                   <div className={cn(
-                    "w-9 h-9 rounded-full flex items-center justify-center ring-1",
+                    "w-14 h-14 rounded-full overflow-hidden ring-2",
                     cfg.dimBg, cfg.ring,
                   )}>
-                    <span className={cn(cfg.color, "text-[10px] font-bold select-none")}>{cfg.initials}</span>
+                    {cfg.avatar ? (
+                      <img src={cfg.avatar} alt={agent.role} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center"><Bot className="w-5 h-5 text-muted-foreground" /></div>
+                    )}
                   </div>
                   <div className={cn(
                     "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card",
