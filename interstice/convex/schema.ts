@@ -37,6 +37,7 @@ export default defineSchema({
     createdBy: v.optional(v.id("agents")),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
+    retryCount: v.optional(v.number()), // Track failures — cancel after MAX_RETRIES
   })
     .index("by_agent_status", ["agentId", "status"])
     .index("by_status", ["status"])

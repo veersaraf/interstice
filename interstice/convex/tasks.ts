@@ -170,16 +170,39 @@ export const resetStale = mutation({
   },
 });
 
-// Reset a single task back to pending after a failure (so it can be retried)
+// Reset a single task back to pending after a failure (so it can be retried).
+// After MAX_RETRIES (2) failures, permanently cancel the task to stop the retry loop.
 export const failTask = mutation({
-  args: { taskId: v.id("tasks") },
+  args: {
+    taskId: v.id("tasks"),
+    dropSession: v.optional(v.boolean()), // When true, caller should clear the agent session
+  },
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
-    if (!task || task.status !== "in_progress") return;
+    if (!task || task.status === "done" || task.status === "cancelled") {
+      return { cancelled: false, retryCount: task?.retryCount || 0 };
+    }
+
+    const retryCount = (task.retryCount || 0) + 1;
+    const MAX_RETRIES = 2;
+
+    if (retryCount >= MAX_RETRIES) {
+      // Permanently cancel — stop the retry death spiral
+      await ctx.db.patch(args.taskId, {
+        status: "cancelled",
+        retryCount,
+        completedAt: Date.now(),
+      });
+      return { cancelled: true, retryCount };
+    }
+
+    // Reset to pending for retry
     await ctx.db.patch(args.taskId, {
       status: "pending",
       startedAt: undefined,
+      retryCount,
     });
+    return { cancelled: false, retryCount };
   },
 });
 

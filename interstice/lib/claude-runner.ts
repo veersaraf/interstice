@@ -209,6 +209,29 @@ export async function runAgent(opts: {
         console.log(`[claude-runner] stderr: ${stderrOutput.substring(0, 500)}`);
       }
 
+      // Windows DLL init failure (0xC0000142 = 3221225794) or other Windows crash codes.
+      // These happen when too many processes are running or sessions are bloated.
+      // If we were using --resume, retry once without it. Otherwise, fail hard.
+      if (code !== null && isWindowsCrashCode(code)) {
+        if (sessionId) {
+          console.log(
+            `[claude-runner] Windows crash code ${code} with session — retrying fresh (no --resume)...`
+          );
+          runAgent({ ...opts, sessionId: null, onEvent })
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        // Already running without session — this is a system resource issue
+        reject(
+          new Error(
+            `Claude CLI crashed (Windows code ${code}). Too many processes or system resources exhausted. ` +
+            `Try closing other applications or waiting a moment.`
+          )
+        );
+        return;
+      }
+
       if (code !== 0 && isUnknownSessionError(stderrOutput) && sessionId) {
         console.log(
           `[claude-runner] Session ${sessionId} expired, retrying fresh...`
@@ -254,6 +277,13 @@ export async function runAgent(opts: {
     proc.stdin.write(prompt);
     proc.stdin.end();
   });
+}
+
+function isWindowsCrashCode(code: number): boolean {
+  // 0xC0000142 = STATUS_DLL_INIT_FAILED — system can't start the process
+  // 0xC0000005 = STATUS_ACCESS_VIOLATION — process crashed
+  const WINDOWS_CRASH_CODES = [3221225794, 3221225477];
+  return WINDOWS_CRASH_CODES.includes(code);
 }
 
 function isUnknownSessionError(stderr: string): boolean {

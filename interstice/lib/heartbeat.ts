@@ -270,12 +270,17 @@ async function runAgentTask(
     // Select adapter: use agent's configured adapter or default to claude
     const adapterType: AdapterType = agent.adapterType || "claude";
 
+    // Use session for --resume, but skip if empty (cleared after crash)
+    const validSessionId =
+      session?.cwd === PROJECT_ROOT && session.claudeSessionId
+        ? session.claudeSessionId
+        : null;
+
     const result = await runAgentUnified({
       adapter: adapterType,
       prompt,
       systemPromptPath,
-      sessionId:
-        session?.cwd === PROJECT_ROOT ? session.claudeSessionId : null,
+      sessionId: validSessionId,
       cwd: PROJECT_ROOT,
       maxTurns,
       allowedTools,
@@ -410,8 +415,23 @@ async function runAgentTask(
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`[heartbeat] ${agent.name} error:`, errorMsg);
 
-    // Cancel the task so it doesn't block the queue
-    await client.mutation(api.tasks.cancel, { taskId: task._id });
+    // If this was a Windows crash, drop the agent's session so next retry starts fresh
+    const isWindowsCrash = errorMsg.includes("Windows code") || errorMsg.includes("3221225794");
+    if (isWindowsCrash) {
+      try {
+        const session = await client.query(api.sessions.getForAgent, { agentId: agent._id });
+        if (session) {
+          await client.mutation(api.sessions.upsert, {
+            agentId: agent._id,
+            claudeSessionId: "", // Clear session — force fresh start
+            cwd: PROJECT_ROOT,
+          });
+          console.log(`[heartbeat] Dropped session for ${agent.name} after Windows crash`);
+        }
+      } catch {
+        // Session cleanup failed — not critical
+      }
+    }
 
     await client.mutation(api.activity.log, {
       agentId: agent._id,
@@ -425,9 +445,19 @@ async function runAgentTask(
       error: errorMsg,
     });
 
-    // Reset the task to pending so it can be retried on the next heartbeat
-    await client.mutation(api.tasks.failTask, { taskId: task._id });
-    console.log(`[heartbeat] Task ${task._id} reset to pending for retry`);
+    // Reset to pending for retry — failTask tracks retryCount and auto-cancels after 2 retries
+    const result = await client.mutation(api.tasks.failTask, { taskId: task._id });
+    if (result?.cancelled) {
+      console.log(`[heartbeat] Task ${task._id} permanently cancelled after ${result.retryCount} retries`);
+      await client.mutation(api.activity.log, {
+        agentId: agent._id,
+        action: "task_cancelled",
+        content: `Task cancelled after ${result.retryCount} failed retries: ${errorMsg}`,
+        taskId: task._id,
+      });
+    } else {
+      console.log(`[heartbeat] Task ${task._id} reset to pending (retry ${result?.retryCount || 1}/2)`);
+    }
   } finally {
     // Set agent idle
     await client.mutation(api.agents.setStatus, {
