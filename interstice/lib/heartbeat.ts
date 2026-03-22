@@ -7,11 +7,13 @@ import fs from "fs";
 import { Id } from "../convex/_generated/dataModel";
 
 const HEARTBEAT_INTERVAL_MS = 3000;
+const MAX_CONCURRENT_AGENTS = 1; // Run one agent at a time to avoid Windows DLL init failures
 const PROJECT_ROOT = process.cwd();
 const MEMORY_PATH = path.resolve(PROJECT_ROOT, "memory", "company.md");
 
 // Agent lock map — prevent concurrent runs per agent
 const agentLocks = new Map<string, boolean>();
+let activeProcessCount = 0;
 
 // Agents that produce data others depend on — must finish first
 const DATA_PRODUCER_AGENTS = ["research"];
@@ -86,6 +88,9 @@ async function tick(client: ConvexHttpClient) {
     const agent = agentMap.get(task.agentId);
     if (!agent) continue;
 
+    // Global process limit — prevent Windows DLL init failures from too many Claude processes
+    if (activeProcessCount >= MAX_CONCURRENT_AGENTS) break;
+
     // Check lock — skip if agent is already running
     if (agentLocks.get(agent._id)) continue;
 
@@ -103,8 +108,10 @@ async function tick(client: ConvexHttpClient) {
 
     // Lock and run
     agentLocks.set(agent._id, true);
+    activeProcessCount++;
     runAgentTask(client, agent, task, agents).finally(() => {
       agentLocks.set(agent._id, false);
+      activeProcessCount--;
     });
   }
 }
