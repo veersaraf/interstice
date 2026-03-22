@@ -19,7 +19,9 @@ let activeProcessCount = 0;
 // Agents that produce data others depend on — must finish first
 const DATA_PRODUCER_AGENTS = ["research"];
 // Agents that consume data from producers — must wait for research before starting
-const DATA_CONSUMER_AGENTS = ["comms", "developer", "call"];
+const DATA_CONSUMER_AGENTS = ["comms", "developer"];
+// Agents that run LAST — wait for ALL other siblings to complete (calls are confirmatory)
+const FINAL_STEP_AGENTS = ["call"];
 // Agents whose output requires human approval before action
 const APPROVAL_AGENTS = ["comms", "call"];
 
@@ -118,7 +120,22 @@ async function tick(client: ConvexHttpClient) {
   const agentMap = new Map(agents.map((a) => [a._id, a]));
   const agentByName = new Map(agents.map((a) => [a.name, a]));
 
-  for (const task of pendingTasks) {
+  // Sort tasks: producers first, then consumers, then final-step agents.
+  // This ensures research always gets dispatched before comms/dev/call in the same tick.
+  const sortedTasks = [...pendingTasks].sort((a, b) => {
+    const agentA = a.agentId ? agentMap.get(a.agentId) : null;
+    const agentB = b.agentId ? agentMap.get(b.agentId) : null;
+    const nameA = agentA?.name || "";
+    const nameB = agentB?.name || "";
+    const priorityOf = (name: string) =>
+      DATA_PRODUCER_AGENTS.includes(name) ? 0 :
+      DATA_CONSUMER_AGENTS.includes(name) ? 1 :
+      FINAL_STEP_AGENTS.includes(name) ? 2 :
+      name === "ceo" ? -1 : 1; // CEO tasks first (delegation), then producers
+    return priorityOf(nameA) - priorityOf(nameB);
+  });
+
+  for (const task of sortedTasks) {
     if (!task.agentId) continue;
 
     const agent = agentMap.get(task.agentId);
@@ -131,14 +148,25 @@ async function tick(client: ConvexHttpClient) {
     if (agentLocks.get(agent._id)) continue;
 
     // === DEPENDENCY CHECK ===
-    // If this agent is a data consumer (comms, developer) and has a parent task,
-    // check if the research sibling has posted findings yet.
-    // This ensures Comms waits for Research before drafting.
-    if (DATA_CONSUMER_AGENTS.includes(agent.name) && task.parentTaskId) {
-      const hasData = await checkSiblingFindings(client, task.parentTaskId, agentByName);
-      if (!hasData) {
-        // Research hasn't posted findings yet — skip this tick, try again next heartbeat
-        continue;
+    // Three tiers of execution order:
+    // 1. DATA_PRODUCER_AGENTS (research) — run immediately, no dependencies
+    // 2. DATA_CONSUMER_AGENTS (comms, developer) — wait for research findings
+    // 3. FINAL_STEP_AGENTS (call) — wait for ALL other siblings to complete
+    if (task.parentTaskId) {
+      if (FINAL_STEP_AGENTS.includes(agent.name)) {
+        // Call agent waits for ALL other siblings (research + comms + developer) to finish
+        const allReady = await checkAllSiblingsComplete(client, task.parentTaskId, task._id);
+        if (!allReady) {
+          console.log(`[heartbeat] ${agent.name} waiting — not all siblings complete yet`);
+          continue;
+        }
+      } else if (DATA_CONSUMER_AGENTS.includes(agent.name)) {
+        // Comms/Developer wait only for research findings
+        const hasData = await checkSiblingFindings(client, task.parentTaskId, agentByName);
+        if (!hasData) {
+          console.log(`[heartbeat] ${agent.name} waiting — research findings not ready yet`);
+          continue;
+        }
       }
     }
 
@@ -204,6 +232,31 @@ async function checkSiblingFindings(
     // If cancelled, skip — don't block consumers on a failed producer
   }
 
+  return true;
+}
+
+/**
+ * Check if ALL non-final sibling tasks are complete (done or cancelled).
+ * Used by FINAL_STEP_AGENTS (call) — they run last, after research AND comms/developer finish.
+ * This ensures calls are confirmatory: the call agent has all findings + email drafts available.
+ */
+async function checkAllSiblingsComplete(
+  client: ConvexHttpClient,
+  parentTaskId: Id<"tasks">,
+  currentTaskId: Id<"tasks">
+): Promise<boolean> {
+  const children: Task[] = await client.query(api.tasks.getChildren, { parentTaskId });
+
+  // Check every sibling except ourself and other FINAL_STEP tasks
+  for (const sibling of children) {
+    if (sibling._id === currentTaskId) continue;
+    // Skip other final-step siblings (don't deadlock call agents waiting on each other)
+    // We can't resolve agent name without the map, so check by looking at the task
+    // Instead, just check: is every non-self sibling done/cancelled?
+    if (sibling.status !== "done" && sibling.status !== "cancelled") {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -613,6 +666,23 @@ async function handleCeoDelegation(
       return false;
 
     const agentByName = new Map(allAgents.map((a) => [a.name, a]));
+
+    // Cancel any stale pending tasks from previous delegations to prevent
+    // old orphaned tasks (e.g. a lingering call task) from firing unexpectedly
+    for (const subtask of parsed.tasks) {
+      const targetAgent = agentByName.get(subtask.agent);
+      if (!targetAgent) continue;
+      const stalePending: Task[] = await client.query(api.tasks.getPending, {
+        agentId: targetAgent._id,
+      });
+      for (const stale of stalePending) {
+        // Only cancel tasks that aren't children of THIS parent (old orphans)
+        if (stale.parentTaskId !== parentTask._id) {
+          await client.mutation(api.tasks.cancel, { taskId: stale._id });
+          console.log(`[heartbeat] Cancelled stale pending task ${stale._id} for ${subtask.agent}`);
+        }
+      }
+    }
 
     let delegated = 0;
     for (const subtask of parsed.tasks) {

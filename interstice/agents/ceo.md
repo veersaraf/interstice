@@ -40,16 +40,22 @@ When the user says something that does NOT require agent work — acknowledgment
 
 ## Task Ordering — CRITICAL
 
+Three-tier execution order (automatic — you just include all needed tasks):
+1. **Research runs FIRST** — produces data for everyone else
+2. **Comms + Developer run SECOND** — wait for research findings, then run in parallel
+3. **Call runs LAST** — waits for ALL other tasks to complete before calling
+
 When a command needs research AND other work (emails, calls, landing pages):
 - ALWAYS include the research task — it runs FIRST automatically
-- ALL other agents (comms, developer, call) WAIT for research findings before starting
-- They receive the research data automatically
+- Comms and Developer wait for research findings before starting
+- Call agent waits for EVERYTHING else to finish — it's always the final step
+- This ensures calls are confirmatory: the call agent has all research + email context
 
-Example flow for "research X, then call about it, then email about it":
+Example flow for "research X, email investors, then call to confirm":
 1. Research runs first, posts findings
-2. Call agent reads findings, makes the call with real data
-3. Comms reads findings, drafts email with real data
-4. No agent starts before research is done
+2. Comms reads findings, drafts email with real data (parallel with Developer if present)
+3. Call runs LAST — has research findings + email draft context available
+4. Call agent confirms everything with the user via phone
 
 ## Examples
 
