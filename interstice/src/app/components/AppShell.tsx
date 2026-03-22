@@ -5,6 +5,12 @@ import { Sidebar } from "./Sidebar";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { ContactsPage } from "./ContactsPage";
 import { GoalsPage } from "./GoalsPage";
+import { TasksPage } from "./TasksPage";
+import { AgentsPage } from "./AgentsPage";
+import { ActivityPage } from "./ActivityPage";
+import { ApprovalsPage } from "./ApprovalsPage";
+import { MessagesPage } from "./MessagesPage";
+import { FindingsPage } from "./FindingsPage";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -15,6 +21,18 @@ export function AppShell({ children }: AppShellProps) {
 
   const pageContent = (() => {
     switch (activeSection) {
+      case "tasks":
+        return <TasksPage />;
+      case "agents":
+        return <AgentsPage />;
+      case "activity":
+        return <ActivityPage />;
+      case "approvals":
+        return <ApprovalsPage />;
+      case "messages":
+        return <MessagesPage />;
+      case "findings":
+        return <FindingsPage />;
       case "contacts":
         return <ContactsPage />;
       case "goals":
