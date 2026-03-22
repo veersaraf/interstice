@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Zap,
   BookOpen,
+  Users,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useState } from "react";
@@ -23,6 +24,7 @@ const navItems = [
   { id: "approvals", label: "Approvals", icon: ShieldCheck },
   { id: "messages",  label: "Messages",  icon: MessageSquare },
   { id: "goals",     label: "Goals",     icon: BookOpen },
+  { id: "contacts",  label: "Contacts",  icon: Users },
 ];
 
 interface SidebarProps {

@@ -26,6 +26,13 @@ export const listActive = query({
   },
 });
 
+export const remove = mutation({
+  args: { id: v.id("goals") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});
+
 export const update = mutation({
   args: {
     id: v.id("goals"),
