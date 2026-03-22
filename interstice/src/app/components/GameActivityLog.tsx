@@ -5,10 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import { cn, timeAgo } from "../../lib/utils";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import {
-  Copy,
-  Check,
   MessageCircle,
-  FileText,
   Bot,
 } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
@@ -92,7 +89,7 @@ function ChatBubble({
     <div className="flex gap-2 mb-2 px-3">
       {/* Agent avatar */}
       <div className={cn(
-        "w-7 h-7 rounded-full shrink-0 mt-0.5 border overflow-hidden",
+        "w-9 h-9 rounded-full shrink-0 mt-0.5 border overflow-hidden",
         cfg?.bg ?? "bg-stone-50",
         "border-stone-200/80"
       )}>
@@ -223,11 +220,8 @@ function isNoisyContent(content: string): boolean {
 export function GameActivityLog() {
   const activities = useQuery(api.activity.list, { limit: 50 });
   const agents = useQuery(api.agents.list);
-  const findings = useQuery(api.findings.getRecent, { limit: 5 });
   const bottomRef = useRef<HTMLDivElement>(null);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"activity" | "output">("activity");
 
   // Auto-scroll to bottom (chat-style: latest at bottom)
   useEffect(() => {
@@ -258,14 +252,6 @@ export function GameActivityLog() {
     });
   }, []);
 
-  const copyContent = useCallback(async (content: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch { /* no-op */ }
-  }, []);
-
   if (!activities || !agents) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -276,150 +262,39 @@ export function GameActivityLog() {
 
   return (
     <div className="h-full flex flex-col bg-card rounded-2xl border border-stone-200/80 overflow-hidden shadow-sm">
-      {/* Tab header */}
-      <div className="px-3 py-2 border-b border-stone-200/60 flex items-center gap-1 shrink-0 bg-stone-50/50">
-        <button
-          onClick={() => setTab("activity")}
-          className={cn(
-            "px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-1.5",
-            tab === "activity"
-              ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-stone-100"
-          )}
-        >
-          <MessageCircle className="w-3.5 h-3.5" /> Chat
-        </button>
-        <button
-          onClick={() => setTab("output")}
-          className={cn(
-            "px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-1.5",
-            tab === "output"
-              ? "bg-cyan-50 text-cyan-700 shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-stone-100"
-          )}
-        >
-          <FileText className="w-3.5 h-3.5" /> Output
-          {findings && findings.length > 0 && (
-            <span className="text-[9px] bg-cyan-100 text-cyan-700 px-1.5 rounded-full font-bold">
-              {findings.length}
-            </span>
-          )}
-        </button>
+      {/* Header */}
+      <div className="px-4 py-2.5 border-b border-stone-200/60 flex items-center gap-1.5 shrink-0 bg-stone-50/50">
+        <MessageCircle className="w-3.5 h-3.5 text-primary" />
+        <span className="text-[11px] font-semibold text-foreground">Chat</span>
       </div>
 
-      {/* Content */}
+      {/* Chat Stream */}
       <ScrollArea className="flex-1">
-        {tab === "activity" ? (
-          /* ─── Chat-style Activity Stream ─── */
-          <div className="py-3">
-            {chatOrderActivities.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-center px-4">
-                <MessageCircle className="w-8 h-8 text-muted-foreground/40 mb-3" />
-                <p className="text-xs text-muted-foreground font-medium">No activity yet</p>
-                <p className="text-[10px] text-muted-foreground/50 mt-1">
-                  Tell your team what to do and watch them work
-                </p>
-              </div>
-            ) : (
-              chatOrderActivities.map((activity) => {
-                const agent = activity.agentId ? agentMap.get(activity.agentId) : null;
-                return (
-                  <ChatBubble
-                    key={activity._id}
-                    activity={activity}
-                    agent={agent ?? null}
-                    isExpanded={expandedItems.has(activity._id)}
-                    onToggle={() => toggleExpand(activity._id)}
-                  />
-                );
-              })
-            )}
-            <div ref={bottomRef} />
-          </div>
-        ) : (
-          /* ─── Output / Findings ─── */
-          <div>
-            {!findings || findings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-center px-4">
-                <FileText className="w-8 h-8 text-muted-foreground/40 mb-3" />
-                <p className="text-xs text-muted-foreground font-medium">No results yet</p>
-                <p className="text-[10px] text-muted-foreground/50 mt-1">
-                  Agent reports and deliverables appear here
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-stone-100">
-                {findings.map((finding) => {
-                  const agent = agentMap.get(finding.agentId);
-                  const isExpanded = expandedItems.has(finding._id);
-                  const isLong = finding.content.length > 300;
-                  const isCopied = copiedId === finding._id;
-                  const cfg = agent ? agentConfig[agent.role] : null;
-
-                  return (
-                    <div key={finding._id} className="px-3 py-3">
-                      {/* Header */}
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "w-6 h-6 rounded-full overflow-hidden border",
-                            cfg?.bg ?? "bg-stone-50",
-                            "border-stone-200/80"
-                          )}>
-                            {cfg?.avatar ? (
-                              <img src={cfg.avatar} alt={agent?.role ?? "Agent"} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center"><Bot className="w-3.5 h-3.5 text-muted-foreground" /></div>
-                            )}
-                          </div>
-                          <span className={cn("text-xs font-bold", cfg?.color ?? "text-stone-600")}>
-                            {agent?.role ?? "Agent"}
-                          </span>
-                          {finding.summary && (
-                            <span className="text-[10px] text-muted-foreground">— {finding.summary}</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[9px] text-muted-foreground/50 tabular-nums">{timeAgo(finding._creationTime)}</span>
-                          <button
-                            onClick={() => copyContent(finding.content, finding._id)}
-                            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-stone-100 transition-colors"
-                          >
-                            {isCopied ? <Check className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Content — rendered as markdown */}
-                      <div className={cn(
-                        "text-xs text-foreground/80 leading-relaxed rounded-xl p-3 bg-stone-50 border border-stone-100",
-                        !isExpanded && isLong && "max-h-28 overflow-hidden relative cursor-pointer"
-                      )}
-                        onClick={() => isLong && !isExpanded && toggleExpand(finding._id)}
-                      >
-                        <ChatMarkdown content={isExpanded ? finding.content : (isLong ? finding.content.substring(0, 300) : finding.content)} />
-                        {!isExpanded && isLong && (
-                          <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-stone-50 to-transparent rounded-b-xl" />
-                        )}
-                      </div>
-
-                      {isExpanded && (
-                        <button onClick={() => toggleExpand(finding._id)} className="text-[10px] text-primary hover:text-primary/80 mt-1.5 font-medium">
-                          Show less
-                        </button>
-                      )}
-                      {!isExpanded && isLong && (
-                        <button onClick={() => toggleExpand(finding._id)} className="text-[10px] text-primary hover:text-primary/80 mt-1.5 font-medium">
-                          Show full output
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="py-3">
+          {chatOrderActivities.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center px-4">
+              <MessageCircle className="w-8 h-8 text-muted-foreground/40 mb-3" />
+              <p className="text-xs text-muted-foreground font-medium">No activity yet</p>
+              <p className="text-[10px] text-muted-foreground/50 mt-1">
+                Tell your team what to do and watch them work
+              </p>
+            </div>
+          ) : (
+            chatOrderActivities.map((activity) => {
+              const agent = activity.agentId ? agentMap.get(activity.agentId) : null;
+              return (
+                <ChatBubble
+                  key={activity._id}
+                  activity={activity}
+                  agent={agent ?? null}
+                  isExpanded={expandedItems.has(activity._id)}
+                  onToggle={() => toggleExpand(activity._id)}
+                />
+              );
+            })
+          )}
+          <div ref={bottomRef} />
+        </div>
       </ScrollArea>
     </div>
   );
