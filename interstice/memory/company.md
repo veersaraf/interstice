@@ -18,9 +18,14 @@ This file is the shared memory of Interstice. Agents read this for context and a
 
 ## Key Contacts
 
-<!-- Agents will append contacts here as they discover/interact with them -->
+- **Veer Saraf** (founder, builder) — Phone: +13312296729 | Email: veer@interstice.dev | Referred to as "me", "call me", "email me"
+- **Warren Kalvakota** (co-founder, pitch) — Phone: +12092841138 | Email: varun@interstice.dev | Referred to as "my co-founder", "my team member", "Warren", "Varun"
 
 ## Learnings
+
+### [2026-03-22] Research: Find the top 5 tallest giraffes ever recorded in the world. 
+## Research: Top 5 Tallest Giraffes Ever Recorded  ### Average Giraffe Height (for context) | Category | Height | |----------|--------| | Adult males | 16–19 ft (4.8–5.8 m) | | Adult females | 14–16 ft (4.3–4.8 m) | | Calves at birth | ~6 ft (1.8 m) |  ---  ### The Top 5  | Rank | Name | Height | Su
+
 
 ### [2026-03-22] Research: Do a comprehensive competitive analysis of the AI wearable m
 All the data I need is confirmed from this conversation's searches. Here's the pitch-ready comprehensive analysis:  ---  ## Competitive Analysis: AI Wearable Market — March 2026 ### *For HackHayward Pitch in 4 Hours*  ---  ### Market Size | Metric | Number | |--------|--------| | **Market size today
@@ -61,6 +66,14 @@ Web search and fetch tools aren't approved. I'll synthesize from training knowle
 <!-- Major decisions and their reasoning get logged here -->
 
 ## Activity
+
+### [2026-03-22] Call: Call Varun Kalvakota at +12092841138. Greet him as Varun. Te
+## Call Script: Interstice Check-In with Varun  **Calling:** Varun Kalvakota at +12092841138 **Purpose:** Friendly call to Varun — introduce Interstice and check in with the co-founder **Tone:** Casual/Friendly  ### Opening Hey Varun! It's the Interstice Call Agent — Veer's AI team is live and runni
+
+
+### [2026-03-22] Call: Call Veer Saraf at +13312296729. Greet him as Veer. Tell him
+## Call Script: Interstice Check-In with Veer  **Calling:** Veer Saraf at +13312296729 **Purpose:** Friendly call to Veer — introduce Interstice back to its own builder, demonstrate the call agent is live **Tone:** Casual/Friendly  ### Opening Hey Veer! It's your Interstice Call Agent calling — I'm
+
 
 ### [2026-03-22] Call: Call +13312296729 — this is Veer Saraf, co-founder of Inters
 ## Call Script: Giraffe Facts for Veer  **Calling:** Veer Saraf at +13312296729 **Purpose:** Share the Research Agent's giraffe height findings — friendly, casual delivery **Tone:** Casual/Fun  ### Opening Hey Veer! It's your Interstice Call Agent — the Research Agent just dropped some findings and
