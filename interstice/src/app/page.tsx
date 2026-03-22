@@ -5,10 +5,8 @@ import { api } from "../../convex/_generated/api";
 import { ShieldCheck, Users, Zap, BarChart3, AlertTriangle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ApprovalQueue } from "./components/ApprovalQueue";
-import { CommandInput } from "./components/CommandInput";
 import { GameWorld } from "./components/GameWorld";
 import { GameActivityLog } from "./components/GameActivityLog";
-import { Card } from "../components/ui/card";
 import { cn } from "../lib/utils";
 import { useNavigate } from "./components/AppShell";
 
@@ -143,10 +141,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Command Input */}
-      <Card className="p-3 shrink-0 rounded-2xl">
-        <CommandInput />
-      </Card>
+      {/* Command input is now embedded in the Chat panel */}
     </div>
   );
 }
