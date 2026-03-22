@@ -540,6 +540,7 @@ type DetailTab = "overview" | "output" | "activity" | "subtasks";
 function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }: TaskDetailPanelProps) {
   const activity = useQuery(api.activity.getByTask, { taskId });
   const addComment = useMutation(api.activity.addUserComment);
+  const updateStatus = useMutation(api.tasks.updateStatus);
   const status = task.status as TaskStatus;
   const meta = statusMeta[status] ?? statusMeta.pending;
   const role = agent?.role ?? "";
@@ -550,6 +551,13 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
   const [activeTab, setActiveTab] = useState<DetailTab>(defaultTab);
   const [commentText, setCommentText] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+
+  const handleStatusChange = async (newStatus: "pending" | "in_progress" | "done") => {
+    setStatusMenuOpen(false);
+    if (newStatus === status) return;
+    await updateStatus({ taskId, status: newStatus });
+  };
 
   const handleSendComment = async () => {
     const text = commentText.trim();
@@ -599,18 +607,45 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <StatusDot status={status} />
-            <Badge
-              variant={
-                status === "in_progress" ? "info"
-                  : status === "pending_approval" ? "warning"
-                    : status === "done" ? "success"
-                      : status === "cancelled" ? "destructive"
-                        : "secondary"
-              }
-              className="text-[10px] px-2 py-0 h-5"
-            >
-              {meta.label}
-            </Badge>
+            {/* Clickable status selector */}
+            <div className="relative">
+              <button
+                onClick={() => setStatusMenuOpen(!statusMenuOpen)}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors cursor-pointer",
+                  status === "in_progress" ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" :
+                  status === "done" ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" :
+                  status === "cancelled" ? "bg-stone-100 text-stone-500 border-stone-200" :
+                  status === "pending_approval" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                  "bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100"
+                )}
+              >
+                {meta.label}
+                <ChevronRight className={cn("w-3 h-3 transition-transform", statusMenuOpen && "rotate-90")} />
+              </button>
+              {statusMenuOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[140px]">
+                  {([
+                    { value: "pending" as const, label: "To Do", dot: "bg-stone-400" },
+                    { value: "in_progress" as const, label: "In Progress", dot: "bg-blue-500" },
+                    { value: "done" as const, label: "Done", dot: "bg-green-500" },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => handleStatusChange(opt.value)}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors hover:bg-secondary",
+                        status === opt.value && "bg-primary/5 font-semibold"
+                      )}
+                    >
+                      <span className={cn("w-2 h-2 rounded-full shrink-0", opt.dot)} />
+                      {opt.label}
+                      {status === opt.value && <CheckCircle2 className="w-3 h-3 ml-auto text-primary" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {status === "in_progress" && (
               <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -890,19 +925,49 @@ function TaskOutputSection({ output, taskTitle, agentName, completedAt }: {
   agentName?: string;
   completedAt?: number;
 }) {
-  const [htmlPreviewOpen, setHtmlPreviewOpen] = useState(false);
+  const [showSource, setShowSource] = useState(false);
   const format = useMemo(() => detectOutputFormat(output), [output]);
 
+  const handleOpenNewTab = () => {
+    const blob = new Blob([output], { type: format === "html" ? "text/html" : "text/plain" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  };
+
   return (
-    <div className="px-5 py-4 border-b border-border/50">
-      <div className="flex items-center justify-between mb-2.5">
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-          Output
-        </p>
+    <div className="px-5 py-4">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            Output
+          </p>
+          <span className={cn(
+            "text-[9px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wider",
+            format === "html" ? "bg-blue-50 text-blue-600" :
+            format === "markdown" ? "bg-purple-50 text-purple-600" :
+            "bg-stone-100 text-stone-500"
+          )}>
             {format}
           </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {format === "html" && (
+            <>
+              <button
+                onClick={() => setShowSource(!showSource)}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors font-medium px-2 py-1 rounded-lg hover:bg-secondary"
+              >
+                {showSource ? "Preview" : "Source"}
+              </button>
+              <button
+                onClick={handleOpenNewTab}
+                className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors font-medium px-2 py-1 rounded-lg hover:bg-primary/5"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Open
+              </button>
+            </>
+          )}
           <DownloadTextButton
             content={output}
             filename={format === "html" ? "output.html" : format === "markdown" ? "output.md" : "output.txt"}
@@ -919,37 +984,27 @@ function TaskOutputSection({ output, taskTitle, agentName, completedAt }: {
       </div>
 
       {format === "html" ? (
-        <div className="space-y-2">
-          <button
-            onClick={() => setHtmlPreviewOpen(!htmlPreviewOpen)}
-            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
-          >
-            <Eye className="w-3.5 h-3.5" />
-            {htmlPreviewOpen ? "Hide preview" : "Show preview"}
-          </button>
-
-          {htmlPreviewOpen && (
-            <div className="border border-border rounded-xl overflow-hidden bg-white">
-              <iframe
-                srcDoc={output}
-                className="w-full h-80 border-0"
-                sandbox="allow-scripts"
-                title="HTML output preview"
-              />
-            </div>
-          )}
-
-          <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto font-mono bg-muted/20 rounded-lg p-3 border border-border/50">
-            {output.slice(0, 500)}
-            {output.length > 500 && "…"}
+        showSource ? (
+          <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed overflow-y-auto font-mono bg-muted/20 rounded-xl p-4 border border-border/50 max-h-[60vh]">
+            {output}
           </div>
-        </div>
+        ) : (
+          <div className="border border-border rounded-xl overflow-hidden bg-white">
+            <iframe
+              srcDoc={output}
+              className="w-full border-0"
+              style={{ minHeight: "400px", height: "60vh" }}
+              sandbox="allow-scripts"
+              title="HTML output preview"
+            />
+          </div>
+        )
       ) : format === "markdown" ? (
-        <div className="prose-interstice bg-muted/20 rounded-xl p-4 border border-border/50 max-h-72 overflow-y-auto">
+        <div className="prose-interstice bg-muted/20 rounded-xl p-5 border border-border/50 overflow-y-auto max-h-[60vh]">
           <MarkdownRenderer content={output} />
         </div>
       ) : (
-        <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto font-mono bg-muted/20 rounded-lg p-3 border border-border/50">
+        <div className="text-[13px] text-foreground/85 whitespace-pre-wrap leading-relaxed overflow-y-auto bg-muted/20 rounded-xl p-5 border border-border/50 max-h-[60vh]">
           {output}
         </div>
       )}

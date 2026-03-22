@@ -95,6 +95,30 @@ export const cancel = mutation({
   },
 });
 
+// Update task status from dashboard (user-driven status changes)
+export const updateStatus = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("done"),
+      v.literal("cancelled")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const patch: Record<string, unknown> = { status: args.status };
+    if (args.status === "in_progress") patch.startedAt = now;
+    if (args.status === "done" || args.status === "cancelled") patch.completedAt = now;
+    if (args.status === "pending") {
+      patch.startedAt = undefined;
+      patch.completedAt = undefined;
+    }
+    await ctx.db.patch(args.taskId, patch);
+  },
+});
+
 // Get pending tasks for an agent
 export const getPending = query({
   args: { agentId: v.id("agents") },
