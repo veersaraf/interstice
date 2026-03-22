@@ -23,7 +23,9 @@ const DATA_CONSUMER_AGENTS = ["comms", "developer"];
 // Agents that run LAST — wait for ALL other siblings to complete (calls are confirmatory)
 const FINAL_STEP_AGENTS = ["call"];
 // Agents whose output requires human approval before action
+// Set DEMO_MODE=true in .env.local to skip approval gates during demos
 const APPROVAL_AGENTS = ["comms", "call"];
+const DEMO_MODE = process.env.DEMO_MODE === "true";
 
 interface Agent {
   _id: Id<"agents">;
@@ -421,7 +423,8 @@ async function runAgentTask(
 
     // === APPROVAL GATE ===
     // Comms and Call agents' outputs go through approval before "sending"
-    if (APPROVAL_AGENTS.includes(agent.name) && finalOutput) {
+    // In DEMO_MODE, skip approval gates and auto-execute actions
+    if (APPROVAL_AGENTS.includes(agent.name) && finalOutput && !DEMO_MODE) {
       const needsApproval = detectApprovalNeeded(agent, task, finalOutput);
 
       if (needsApproval) {
@@ -464,6 +467,42 @@ async function runAgentTask(
         // Don't mark as done — wait for approval
         await client.mutation(api.heartbeats.succeed, { id: heartbeatId });
         return; // Exit without completing — approval flow handles the rest
+      }
+    }
+
+    // In DEMO_MODE, auto-execute actions that would normally need approval
+    if (DEMO_MODE && APPROVAL_AGENTS.includes(agent.name) && finalOutput) {
+      const needsApproval = detectApprovalNeeded(agent, task, finalOutput);
+      if (needsApproval) {
+        console.log(`[heartbeat] DEMO_MODE: auto-executing ${needsApproval.action} (skipping approval gate)`);
+        await client.mutation(api.activity.log, {
+          agentId: agent._id,
+          action: "demo_auto_approve",
+          content: `🚀 DEMO MODE: Auto-approved ${needsApproval.action}`,
+          taskId: task._id,
+        });
+
+        // Auto-execute the action via the approve endpoint
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+          // Create approval record as "approved" directly
+          const approvalId = await client.mutation(api.approvals.create, {
+            taskId: task._id,
+            agentId: agent._id,
+            action: needsApproval.action,
+            details: needsApproval.details,
+          });
+
+          // Fire the approve endpoint to execute the action
+          await fetch(`${baseUrl}/api/approve`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approvalId, decision: "approve" }),
+          });
+        } catch (err) {
+          console.error("[heartbeat] DEMO_MODE auto-execute failed:", err);
+        }
       }
     }
 
