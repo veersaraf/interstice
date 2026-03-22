@@ -134,16 +134,26 @@ async function fireCommand(uid: string, command: string, sessionId: string) {
   // OMI memory transcripts include everything said — we only want the command
   const rawAfterWake = (wakeMatch[1] || "").trim();
 
-  // Cut at natural sentence boundaries to remove post-command chatter
-  // Look for: period followed by space/capital, "okay", "um", "so", "and then", "like"
-  const sentenceEnd = rawAfterWake.match(
-    /^(.+?(?:\.|!|\?))\s+(?:[A-Z]|okay|um|uh|so\s|and\s+then|like\s|yeah|I\s+don)/
-  );
-  let actualCommand = sentenceEnd ? sentenceEnd[1].trim() : rawAfterWake;
+  // Check for "over" end marker (walkie-talkie style) — cuts command cleanly
+  // Matches "over" at the end or followed by trailing speech
+  const overMatch = rawAfterWake.match(/^(.+?)\s*[,.]?\s*\bover\b\s*[,.]?\s*/i);
+  let actualCommand: string;
 
-  // Cap at 300 chars to prevent massive transcript dumps
-  if (actualCommand.length > 300) {
-    actualCommand = actualCommand.substring(0, 300).trim();
+  if (overMatch) {
+    // "over" found — take everything before it
+    actualCommand = overMatch[1].trim();
+    console.log(`[OMI] End marker "over" detected — clean cut`);
+  } else {
+    // No "over" — fall back to sentence boundary detection
+    const sentenceEnd = rawAfterWake.match(
+      /^(.+?(?:\.|!|\?))\s+(?:[A-Z]|okay|um|uh|so\s|and\s+then|like\s|yeah|I\s+don)/
+    );
+    actualCommand = sentenceEnd ? sentenceEnd[1].trim() : rawAfterWake;
+  }
+
+  // Cap at 500 chars — generous limit for long commands
+  if (actualCommand.length > 500) {
+    actualCommand = actualCommand.substring(0, 500).trim();
   }
 
   if (actualCommand.length < MIN_COMMAND_LENGTH) {
