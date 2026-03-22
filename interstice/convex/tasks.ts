@@ -42,13 +42,29 @@ export const complete = mutation({
   args: {
     taskId: v.id("tasks"),
     output: v.string(),
+    outputFormat: v.optional(v.union(
+      v.literal("text"),
+      v.literal("markdown"),
+      v.literal("html")
+    )),
+    outputFiles: v.optional(v.array(v.object({
+      name: v.string(),
+      storageId: v.optional(v.id("_storage")),
+      url: v.optional(v.string()),
+      mimeType: v.string(),
+    }))),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.taskId, {
+    const patch: Record<string, unknown> = {
       status: "done",
       output: args.output,
+      outputFormat: args.outputFormat ?? "markdown",
       completedAt: Date.now(),
-    });
+    };
+    if (args.outputFiles) {
+      patch.outputFiles = args.outputFiles;
+    }
+    await ctx.db.patch(args.taskId, patch);
   },
 });
 

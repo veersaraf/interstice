@@ -474,10 +474,14 @@ async function runAgentTask(
       }
     }
 
-    // Complete the task
+    // Complete the task — detect output format from content
+    const outputFormat = detectOutputFormat(agent.name, finalOutput);
+    const outputFiles = detectOutputFiles(agent.name, finalOutput);
     await client.mutation(api.tasks.complete, {
       taskId: task._id,
       output: finalOutput,
+      outputFormat,
+      ...(outputFiles.length > 0 ? { outputFiles } : {}),
     });
 
     await client.mutation(api.activity.log, {
@@ -1053,6 +1057,63 @@ function appendToCompanyMemory(agent: Agent, task: Task, output: string) {
   } catch (err) {
     console.error("[heartbeat] Failed to update company memory:", err);
   }
+}
+
+/**
+ * Detect the output format based on agent type and content.
+ * Developer agent producing HTML gets "html", everything else defaults to "markdown".
+ */
+function detectOutputFormat(agentName: string, output: string): "text" | "markdown" | "html" {
+  if (agentName === "developer") {
+    // If output contains HTML structure, mark as html
+    if (output.includes("<!DOCTYPE") || output.includes("<html") || output.includes("<body")) {
+      return "html";
+    }
+  }
+  // Most agent output uses markdown formatting
+  return "markdown";
+}
+
+/**
+ * Detect output files from agent output.
+ * Scans for file paths the agent wrote to disk (output/ directory).
+ */
+function detectOutputFiles(
+  agentName: string,
+  output: string
+): Array<{ name: string; url: string; mimeType: string }> {
+  if (agentName !== "developer") return [];
+
+  const files: Array<{ name: string; url: string; mimeType: string }> = [];
+  const pathPattern = /output\/[\w.\-/]+\.\w+/g;
+  const matches = [...new Set(output.match(pathPattern) ?? [])];
+
+  const mimeMap: Record<string, string> = {
+    html: "text/html",
+    css: "text/css",
+    js: "application/javascript",
+    ts: "application/typescript",
+    json: "application/json",
+    md: "text/markdown",
+    txt: "text/plain",
+    png: "image/png",
+    jpg: "image/jpeg",
+    svg: "image/svg+xml",
+  };
+
+  for (const filePath of matches) {
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+    const absPath = path.resolve(PROJECT_ROOT, filePath);
+    if (fs.existsSync(absPath)) {
+      files.push({
+        name: filePath,
+        url: `/api/files/${encodeURIComponent(filePath)}`,
+        mimeType: mimeMap[ext] ?? "application/octet-stream",
+      });
+    }
+  }
+
+  return files;
 }
 
 /**

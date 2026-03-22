@@ -34,6 +34,17 @@ export default defineSchema({
     ),
     input: v.string(),
     output: v.optional(v.string()),
+    outputFormat: v.optional(v.union(
+      v.literal("text"),
+      v.literal("markdown"),
+      v.literal("html")
+    )),
+    outputFiles: v.optional(v.array(v.object({
+      name: v.string(),
+      storageId: v.optional(v.id("_storage")),
+      url: v.optional(v.string()),
+      mimeType: v.string(),
+    }))),
     createdBy: v.optional(v.id("agents")),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
