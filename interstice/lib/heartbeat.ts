@@ -24,10 +24,9 @@ const DATA_PRODUCER_AGENTS = ["research"];
 const DATA_CONSUMER_AGENTS = ["comms", "developer"];
 // Agents that run LAST — wait for ALL other siblings to complete (calls are confirmatory)
 const FINAL_STEP_AGENTS = ["call"];
-// Agents whose output requires human approval before action
-// Set DEMO_MODE=true in .env.local to skip approval gates during demos
-const APPROVAL_AGENTS = ["comms", "call"];
-const DEMO_MODE = process.env.DEMO_MODE === "true";
+// NOTE: Approval gates disabled for hackathon demo.
+// To re-enable: wrap the action execution block below in an approval flow
+// and add back APPROVAL_AGENTS = ["comms", "call"]
 
 interface Agent {
   _id: Id<"agents">;
@@ -423,76 +422,28 @@ async function runAgentTask(
       appendToCompanyMemory(agent, task, finalOutput);
     }
 
-    // === APPROVAL GATE ===
-    // Comms and Call agents' outputs go through approval before "sending"
-    // In DEMO_MODE, skip approval gates and auto-execute actions
-    if (APPROVAL_AGENTS.includes(agent.name) && finalOutput && !DEMO_MODE) {
-      const needsApproval = detectApprovalNeeded(agent, task, finalOutput);
+    // === ACTION EXECUTION ===
+    // Comms and Call agents produce actionable output (emails, calls).
+    // Execute actions directly — no approval gates during hackathon demo.
+    if ((agent.name === "comms" || agent.name === "call") && finalOutput) {
+      const needsAction = detectApprovalNeeded(agent, task, finalOutput);
+      if (needsAction) {
+        console.log(`[heartbeat] Auto-executing ${needsAction.action} for ${agent.name}`);
 
-      if (needsApproval) {
-        // Create approval record
-        await client.mutation(api.approvals.create, {
-          taskId: task._id,
-          agentId: agent._id,
-          action: needsApproval.action,
-          details: needsApproval.details,
-        });
-
-        // Set task to pending_approval
-        await client.mutation(api.tasks.requestApproval, {
-          taskId: task._id,
-        });
-
-        await client.mutation(api.activity.log, {
-          agentId: agent._id,
-          action: "approval_requested",
-          content: `⚠️ ${agent.role} needs approval: ${needsApproval.action}`,
-          taskId: task._id,
-        });
-
-        // Notify OMI user about pending approval
-        if (task.parentTaskId) {
-          try {
-            const parentTask = await client.query(api.tasks.get, { id: task.parentTaskId });
-            if (parentTask) {
-              const omiUid = extractOmiUid(parentTask.input);
-              if (omiUid) {
-                const approvalMsg = `Your ${agent.role} wants to ${needsApproval.action}. Say "approve" or "deny".`;
-                await sendOmiNotification(omiUid, approvalMsg);
-              }
-            }
-          } catch (err) {
-            console.error("[heartbeat] Failed to send OMI approval notification:", err);
-          }
-        }
-
-        // Don't mark as done — wait for approval
-        await client.mutation(api.heartbeats.succeed, { id: heartbeatId });
-        return; // Exit without completing — approval flow handles the rest
-      }
-    }
-
-    // In DEMO_MODE, directly execute actions that would normally need approval
-    // No approval records created, no API calls — just run the action inline
-    if (DEMO_MODE && APPROVAL_AGENTS.includes(agent.name) && finalOutput) {
-      const needsApproval = detectApprovalNeeded(agent, task, finalOutput);
-      if (needsApproval) {
-        console.log(`[heartbeat] DEMO_MODE: directly executing ${needsApproval.action} (no approval)`);
-
-        let actionResult = `Action logged: ${needsApproval.action}`;
+        let actionResult = `Action logged: ${needsAction.action}`;
         try {
-          const actionLower = needsApproval.action.toLowerCase();
+          const actionLower = needsAction.action.toLowerCase();
 
           if (actionLower.includes("call") || actionLower.includes("phone")) {
-            const phoneNumber = parsePhoneNumber(needsApproval.details);
+            const phoneNumber = parsePhoneNumber(needsAction.details);
             if (phoneNumber) {
-              const result = await makeCall(phoneNumber, needsApproval.details);
+              const result = await makeCall(phoneNumber, needsAction.details);
               actionResult = result.message;
             } else {
               actionResult = "Could not parse phone number from details.";
             }
           } else if (actionLower.includes("email") || actionLower.includes("send")) {
-            const parsed = parseDemoEmailDetails(needsApproval.details);
+            const parsed = parseDemoEmailDetails(needsAction.details);
             if (parsed) {
               const result = await sendEmail(parsed.to, parsed.subject, parsed.body);
               actionResult = result.message;
@@ -503,13 +454,13 @@ async function runAgentTask(
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
           actionResult = `Action failed: ${errMsg}`;
-          console.error("[heartbeat] DEMO_MODE action execution failed:", err);
+          console.error("[heartbeat] Action execution failed:", err);
         }
 
         await client.mutation(api.activity.log, {
           agentId: agent._id,
-          action: "demo_auto_execute",
-          content: `🚀 DEMO MODE: ${needsApproval.action} — ${actionResult}`,
+          action: "action_executed",
+          content: `🚀 ${needsAction.action} — ${actionResult}`,
           taskId: task._id,
         });
 
@@ -517,8 +468,8 @@ async function runAgentTask(
         await client.mutation(api.findings.post, {
           agentId: agent._id,
           taskId: task._id,
-          content: `[AUTO-EXECUTED] ${needsApproval.action}: ${actionResult}\n\n${needsApproval.details.substring(0, 400)}`,
-          summary: `Auto-executed: ${needsApproval.action}`,
+          content: `[EXECUTED] ${needsAction.action}: ${actionResult}\n\n${needsAction.details.substring(0, 400)}`,
+          summary: `Executed: ${needsAction.action}`,
         });
       }
     }
