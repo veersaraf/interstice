@@ -6,13 +6,16 @@ import { cn } from "../../lib/utils";
 import { Network, Zap, AlertCircle, Clock, FileText, Cpu, Settings } from "lucide-react";
 import { useState } from "react";
 import { Id } from "../../../convex/_generated/dataModel";
+import { Card } from "../../components/ui/card";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 
-const roleConfig: Record<string, { color: string; bg: string; border: string }> = {
-  CEO:            { color: "text-yellow-400", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.15)" },
-  Research:       { color: "text-blue-400",   bg: "rgba(96,165,250,0.08)", border: "rgba(96,165,250,0.15)" },
-  Communications: { color: "text-purple-400", bg: "rgba(192,132,252,0.08)", border: "rgba(192,132,252,0.15)" },
-  Developer:      { color: "text-green-400",  bg: "rgba(52,211,153,0.08)", border: "rgba(52,211,153,0.15)" },
-  Call:           { color: "text-orange-400", bg: "rgba(251,146,60,0.08)", border: "rgba(251,146,60,0.15)" },
+const roleConfig: Record<string, { initials: string; color: string; dimBg: string; ring: string }> = {
+  CEO:            { initials: "CEO", color: "text-amber-700",   dimBg: "bg-amber-50",   ring: "ring-amber-300" },
+  Research:       { initials: "RES", color: "text-blue-700",    dimBg: "bg-blue-50",    ring: "ring-blue-300" },
+  Communications: { initials: "COM", color: "text-purple-700",  dimBg: "bg-purple-50",  ring: "ring-purple-300" },
+  Developer:      { initials: "DEV", color: "text-emerald-700", dimBg: "bg-emerald-50", ring: "ring-emerald-300" },
+  Call:           { initials: "CAL", color: "text-orange-700",  dimBg: "bg-orange-50",  ring: "ring-orange-300" },
 };
 
 const claudeModels = [
@@ -51,31 +54,30 @@ function AdapterSelector({ agentId, currentAdapter, currentModel }: {
     <div>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+        className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
       >
         <Settings className="w-3 h-3" />
         <Cpu className="w-3 h-3" />
         <span className="font-medium">
           {adapter === "codex" ? "Codex" : "Claude"}
-          {currentModel && <span className="text-gray-600 ml-1">({models.find(m => m.id === currentModel)?.label || currentModel})</span>}
+          {currentModel && <span className="text-muted-foreground/60 ml-1">({models.find(m => m.id === currentModel)?.label || currentModel})</span>}
         </span>
       </button>
 
       {expanded && (
         <div className="mt-2 space-y-2">
-          {/* Adapter toggle */}
           <div className="flex gap-1">
             {(["claude", "codex"] as const).map((a) => (
               <button
                 key={a}
                 onClick={() => handleAdapterChange(a)}
                 className={cn(
-                  "px-2.5 py-1 rounded text-[10px] font-semibold transition-all",
+                  "px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all border",
                   adapter === a
                     ? a === "claude"
-                      ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
-                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : "text-gray-600 hover:text-gray-400 border border-transparent"
+                      ? "bg-orange-500/15 text-orange-400 border-orange-500/25"
+                      : "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
+                    : "text-muted-foreground hover:text-foreground border-transparent"
                 )}
               >
                 {a === "claude" ? "Claude" : "Codex"}
@@ -83,11 +85,10 @@ function AdapterSelector({ agentId, currentAdapter, currentModel }: {
             ))}
           </div>
 
-          {/* Model selector */}
           <select
             value={currentModel || ""}
             onChange={(e) => handleModelChange(e.target.value)}
-            className="w-full text-[10px] bg-black/30 text-gray-300 border border-white/10 rounded px-2 py-1 outline-none focus:border-blue-500/50"
+            className="w-full text-[10px] bg-muted text-foreground border border-border rounded-md px-2 py-1 outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="">Default model</option>
             {models.map((m) => (
@@ -109,7 +110,7 @@ export function AgentsPage() {
     return (
       <div className="max-w-[1100px] space-y-3">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-24 rounded-lg animate-pulse" style={{ background: "var(--surface-2)" }} />
+          <div key={i} className="h-24 rounded-lg animate-pulse bg-secondary" />
         ))}
       </div>
     );
@@ -121,20 +122,18 @@ export function AgentsPage() {
     <div className="max-w-[1100px] space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2.5">
-        <Network className="w-4 h-4 text-gray-500" />
-        <h1 className="text-sm font-semibold text-white">Agents</h1>
-        <span className="text-[11px] text-gray-500 font-medium">{agents.length} total</span>
+        <Network className="w-4 h-4 text-muted-foreground" />
+        <h1 className="text-sm font-semibold text-foreground">Agents</h1>
+        <span className="text-[11px] text-muted-foreground font-medium">{agents.length} total</span>
         {activeCount > 0 && (
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">
-            {activeCount} active
-          </span>
+          <Badge variant="success">{activeCount} active</Badge>
         )}
       </div>
 
       {/* Agent cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {agents.map((agent) => {
-          const cfg = roleConfig[agent.role] ?? { color: "text-gray-400", bg: "rgba(156,163,175,0.08)", border: "rgba(156,163,175,0.15)" };
+          const cfg = roleConfig[agent.role] ?? { initials: "??", color: "text-stone-500", dimBg: "bg-stone-50", ring: "ring-stone-300" };
           const isActive = agent.status === "active";
           const isError = agent.status === "error";
           const agentTasks = tasks?.filter((t) => t.agentId === agent._id) ?? [];
@@ -146,29 +145,33 @@ export function AgentsPage() {
             ?.slice(0, 1)[0];
 
           return (
-            <div
+            <Card
               key={agent._id}
-              className={cn("rounded-lg overflow-hidden transition-all", isActive && "agent-active")}
-              style={{
-                background: "var(--surface-2)",
-                border: `1px solid ${isActive ? cfg.color.replace("text-", "").replace("-400", "") + "30" : "var(--border)"}`,
-              }}
+              className={cn(
+                "overflow-hidden transition-all",
+                isActive && "agent-active border-green-300",
+                isError && "border-red-300"
+              )}
             >
               {/* Agent header */}
               <div className="px-4 py-3 flex items-center gap-3">
-                <div
-                  className={cn(
-                    "w-2.5 h-2.5 rounded-full shrink-0",
-                    isActive ? "bg-green-400 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"
-                    : isError ? "bg-red-400"
-                    : "bg-gray-700"
-                  )}
-                />
+                <div className="relative shrink-0">
+                  <div className={cn(
+                    "w-9 h-9 rounded-full flex items-center justify-center ring-1",
+                    cfg.dimBg, cfg.ring,
+                  )}>
+                    <span className={cn(cfg.color, "text-[10px] font-bold select-none")}>{cfg.initials}</span>
+                  </div>
+                  <div className={cn(
+                    "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card",
+                    isActive ? "bg-green-500" : isError ? "bg-red-500" : "bg-stone-300"
+                  )} />
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className={cn("text-sm font-semibold", cfg.color)}>{agent.role}</div>
-                  <div className="text-[11px] text-gray-500 truncate">{agent.title}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{agent.title}</div>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-gray-600">
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   {activeTasks > 0 && (
                     <span className="flex items-center gap-1">
                       <Zap className="w-3 h-3 text-blue-400" />
@@ -185,32 +188,32 @@ export function AgentsPage() {
               {/* Current task */}
               {isActive && agent.currentTask && (
                 <div className="px-4 pb-3">
-                  <div className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Working on</div>
-                  <p className="text-xs text-gray-400 line-clamp-2 italic">{agent.currentTask}</p>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Working on</div>
+                  <p className="text-xs text-muted-foreground line-clamp-2 italic">{agent.currentTask}</p>
                 </div>
               )}
 
               {/* Recent output */}
               {recentOutput && (
-                <div className="px-4 py-2.5" style={{ borderTop: "1px solid var(--border)" }}>
-                  <div className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Latest output</div>
-                  <p className="text-[11px] text-gray-500 line-clamp-3 font-mono leading-relaxed">
+                <div className="px-4 py-2.5 border-t border-border">
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Latest output</div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-3 font-mono leading-relaxed">
                     {recentOutput.content.substring(0, 200)}
-                    {recentOutput.content.length > 200 && "…"}
+                    {recentOutput.content.length > 200 && "..."}
                   </p>
                 </div>
               )}
 
               {/* Error state */}
               {isError && (
-                <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderTop: "1px solid var(--border)" }}>
+                <div className="px-4 py-2.5 flex items-center gap-2 border-t border-border">
                   <AlertCircle className="w-3.5 h-3.5 text-red-400" />
                   <span className="text-xs text-red-400">Agent in error state</span>
                 </div>
               )}
 
-              {/* Adapter / Model selector */}
-              <div className="px-4 py-2.5" style={{ borderTop: "1px solid var(--border)" }}>
+              {/* Adapter selector */}
+              <div className="px-4 py-2.5 border-t border-border">
                 <AdapterSelector
                   agentId={agent._id}
                   currentAdapter={agent.adapterType as "claude" | "codex" | undefined}
@@ -219,11 +222,10 @@ export function AgentsPage() {
               </div>
 
               {/* Status bar */}
-              <div
-                className="px-4 py-2 flex items-center justify-between"
-                style={{ borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.15)" }}
-              >
-                <span className={cn("text-[10px] font-medium", isActive ? "text-green-400" : isError ? "text-red-400" : "text-gray-600")}>
+              <div className="px-4 py-2 flex items-center justify-between border-t border-border bg-muted/30">
+                <span className={cn("text-[10px] font-medium",
+                  isActive ? "text-emerald-400" : isError ? "text-red-400" : "text-muted-foreground"
+                )}>
                   {isActive ? "Active" : isError ? "Error" : "Idle"}
                 </span>
                 {isActive && (
@@ -233,7 +235,7 @@ export function AgentsPage() {
                   </span>
                 )}
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>

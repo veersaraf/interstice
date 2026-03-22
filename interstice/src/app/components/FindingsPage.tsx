@@ -2,25 +2,25 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { cn } from "../../lib/utils";
-import { timeAgo } from "../../lib/utils";
+import { cn, timeAgo } from "../../lib/utils";
 import { FileText, ChevronDown, Copy, Check } from "lucide-react";
 import { useState } from "react";
+import { Card } from "../../components/ui/card";
 
 const roleColors: Record<string, string> = {
-  CEO:            "text-yellow-400",
-  Research:       "text-blue-400",
-  Communications: "text-purple-400",
-  Developer:      "text-green-400",
-  Call:           "text-orange-400",
+  CEO:            "text-amber-700",
+  Research:       "text-blue-700",
+  Communications: "text-purple-700",
+  Developer:      "text-emerald-700",
+  Call:           "text-orange-700",
 };
 
-const roleBg: Record<string, string> = {
-  CEO:            "rgba(251,191,36,0.08)",
-  Research:       "rgba(96,165,250,0.08)",
-  Communications: "rgba(192,132,252,0.08)",
-  Developer:      "rgba(52,211,153,0.08)",
-  Call:           "rgba(251,146,60,0.08)",
+const roleDimBg: Record<string, string> = {
+  CEO:            "bg-amber-500/[0.06]",
+  Research:       "bg-blue-500/[0.06]",
+  Communications: "bg-purple-500/[0.06]",
+  Developer:      "bg-emerald-500/[0.06]",
+  Call:           "bg-orange-500/[0.06]",
 };
 
 export function FindingsPage() {
@@ -33,7 +33,7 @@ export function FindingsPage() {
     return (
       <div className="max-w-[1100px] space-y-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-32 rounded-lg animate-pulse" style={{ background: "var(--surface-2)" }} />
+          <div key={i} className="h-32 rounded-lg animate-pulse bg-secondary" />
         ))}
       </div>
     );
@@ -55,31 +55,25 @@ export function FindingsPage() {
       await navigator.clipboard.writeText(content);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      // Clipboard not available
-    }
+    } catch { /* no-op */ }
   };
 
   return (
     <div className="max-w-[1100px] space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2.5">
-        <FileText className="w-4 h-4 text-gray-500" />
-        <h1 className="text-sm font-semibold text-white">Agent Output & Findings</h1>
-        <span className="text-[11px] text-gray-500 font-medium">{findings.length} results</span>
+        <FileText className="w-4 h-4 text-muted-foreground" />
+        <h1 className="text-sm font-semibold text-foreground">Agent Output & Findings</h1>
+        <span className="text-[11px] text-muted-foreground font-medium">{findings.length} results</span>
       </div>
 
-      {/* Findings list */}
       {findings.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-            style={{ background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.2)" }}
-          >
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-cyan-500/10 border border-cyan-500/20">
             <FileText className="w-6 h-6 text-cyan-400" />
           </div>
-          <p className="text-sm font-medium text-gray-300 mb-1">No findings yet</p>
-          <p className="text-xs text-gray-500">
+          <p className="text-sm font-medium text-foreground mb-1">No findings yet</p>
+          <p className="text-xs text-muted-foreground">
             Agent research results and outputs will appear here
           </p>
         </div>
@@ -92,66 +86,62 @@ export function FindingsPage() {
             const isCopied = copiedId === finding._id;
 
             return (
-              <div
-                key={finding._id}
-                className="rounded-lg overflow-hidden"
-                style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
-              >
+              <Card key={finding._id} className="overflow-hidden">
                 {/* Header */}
                 <div
-                  className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-white/[0.02] transition-colors"
+                  className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-accent/20 transition-colors"
                   onClick={() => toggleExpand(finding._id)}
                 >
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
-                      style={{ background: roleBg[agent?.role ?? ""] ?? "rgba(156,163,175,0.08)" }}
-                    >
-                      <FileText className={cn("w-3.5 h-3.5", roleColors[agent?.role ?? ""] ?? "text-gray-400")} />
+                    <div className={cn(
+                      "w-7 h-7 rounded-md flex items-center justify-center shrink-0",
+                      roleDimBg[agent?.role ?? ""] ?? "bg-zinc-500/[0.06]"
+                    )}>
+                      <FileText className={cn("w-3.5 h-3.5", roleColors[agent?.role ?? ""] ?? "text-zinc-400")} />
                     </div>
                     <div>
-                      <span className={cn("text-xs font-bold", roleColors[agent?.role ?? ""] ?? "text-gray-400")}>
+                      <span className={cn("text-xs font-bold", roleColors[agent?.role ?? ""] ?? "text-zinc-400")}>
                         {agent?.role ?? "Agent"}
                       </span>
                       {finding.summary && (
-                        <p className="text-xs text-gray-400 mt-0.5">{finding.summary}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{finding.summary}</p>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-600 tabular-nums">{timeAgo(finding._creationTime)}</span>
+                    <span className="text-[10px] text-muted-foreground/60 tabular-nums">{timeAgo(finding._creationTime)}</span>
                     <button
                       onClick={(e) => { e.stopPropagation(); copyContent(finding.content, finding._id); }}
-                      className="p-1.5 rounded-md text-gray-600 hover:text-gray-400 hover:bg-white/5 transition-colors"
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                       title="Copy to clipboard"
                     >
-                      {isCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
-                    <ChevronDown className={cn("w-4 h-4 text-gray-600 transition-transform", isExpanded && "rotate-180")} />
+                    <ChevronDown className={cn("w-4 h-4 text-muted-foreground/60 transition-transform", isExpanded && "rotate-180")} />
                   </div>
                 </div>
 
                 {/* Content */}
-                <div className="px-4 pb-4" style={{ borderTop: "1px solid var(--border)" }}>
+                <div className="px-4 pb-4 border-t border-border">
                   <div className={cn(
-                    "text-xs text-gray-300 whitespace-pre-wrap leading-relaxed pt-3 font-mono",
+                    "text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed pt-3 font-mono",
                     !isExpanded && isLong && "max-h-32 overflow-hidden relative"
                   )}>
-                    {isExpanded || !isLong ? finding.content : finding.content.substring(0, 400) + "…"}
+                    {isExpanded || !isLong ? finding.content : finding.content.substring(0, 400) + "..."}
                     {!isExpanded && isLong && (
-                      <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[var(--surface-2)] to-transparent" />
+                      <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent" />
                     )}
                   </div>
                   {!isExpanded && isLong && (
                     <button
                       onClick={() => toggleExpand(finding._id)}
-                      className="text-[11px] text-blue-400 hover:text-blue-300 mt-2 font-medium"
+                      className="text-[11px] text-primary hover:text-primary/80 mt-2 font-medium"
                     >
-                      Show full output →
+                      Show full output
                     </button>
                   )}
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>

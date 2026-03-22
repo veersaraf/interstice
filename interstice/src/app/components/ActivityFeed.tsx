@@ -5,17 +5,17 @@ import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
 
 const actionStyles: Record<string, { color: string; dot: string; label?: string }> = {
-  command_received:    { color: "text-white",      dot: "bg-white",      label: "CMD"      },
-  task_started:        { color: "text-blue-400",   dot: "bg-blue-400",   label: "START"    },
-  agent_output:        { color: "text-gray-500",   dot: "bg-gray-600"                      },
-  task_completed:      { color: "text-green-400",  dot: "bg-green-400",  label: "DONE"     },
-  task_error:          { color: "text-red-400",    dot: "bg-red-400",    label: "ERR"      },
-  delegated:           { color: "text-yellow-400", dot: "bg-yellow-400", label: "DELEGATE" },
-  delegation_complete: { color: "text-yellow-300", dot: "bg-yellow-300", label: "SENT"     },
-  findings_posted:     { color: "text-cyan-400",   dot: "bg-cyan-400",   label: "SHARED"   },
-  synthesis_triggered: { color: "text-purple-400", dot: "bg-purple-400", label: "SYNTH"    },
-  synthesis:           { color: "text-purple-300", dot: "bg-purple-300", label: "RESULT"   },
-  approval_requested:  { color: "text-yellow-300", dot: "bg-yellow-300", label: "APPROVAL" },
+  command_received:    { color: "text-foreground",    dot: "bg-foreground",    label: "CMD"      },
+  task_started:        { color: "text-blue-700",      dot: "bg-blue-600",      label: "START"    },
+  agent_output:        { color: "text-muted-foreground", dot: "bg-muted-foreground"               },
+  task_completed:      { color: "text-green-700",     dot: "bg-green-600",     label: "DONE"     },
+  task_error:          { color: "text-red-700",       dot: "bg-red-600",       label: "ERR"      },
+  delegated:           { color: "text-amber-700",     dot: "bg-amber-600",     label: "DELEGATE" },
+  delegation_complete: { color: "text-amber-600",     dot: "bg-amber-500",     label: "SENT"     },
+  findings_posted:     { color: "text-cyan-700",      dot: "bg-cyan-600",      label: "SHARED"   },
+  synthesis_triggered: { color: "text-purple-700",    dot: "bg-purple-600",    label: "SYNTH"    },
+  synthesis:           { color: "text-purple-600",    dot: "bg-purple-500",    label: "RESULT"   },
+  approval_requested:  { color: "text-amber-600",     dot: "bg-amber-500",     label: "APPROVAL" },
 };
 
 export function ActivityFeed() {

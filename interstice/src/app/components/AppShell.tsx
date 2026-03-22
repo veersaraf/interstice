@@ -43,7 +43,7 @@ export function AppShell({ children }: AppShellProps) {
   })();
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "var(--background)" }}>
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar activeSection={activeSection} onNavigate={setActiveSection} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <BreadcrumbBar section={activeSection} />

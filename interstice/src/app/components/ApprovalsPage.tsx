@@ -5,15 +5,16 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { ShieldCheck, Check, X, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { Id } from "../../../convex/_generated/dataModel";
-import { cn } from "../../lib/utils";
-import { timeAgo } from "../../lib/utils";
+import { cn, timeAgo } from "../../lib/utils";
+import { Card } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
 
 const roleColors: Record<string, string> = {
-  CEO:            "text-yellow-400",
-  Research:       "text-blue-400",
-  Communications: "text-purple-400",
-  Developer:      "text-green-400",
-  Call:           "text-orange-400",
+  CEO:            "text-amber-700",
+  Research:       "text-blue-700",
+  Communications: "text-purple-700",
+  Developer:      "text-emerald-700",
+  Call:           "text-orange-700",
 };
 
 export function ApprovalsPage() {
@@ -27,7 +28,7 @@ export function ApprovalsPage() {
     return (
       <div className="max-w-[1000px] space-y-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-20 rounded-lg animate-pulse" style={{ background: "var(--surface-2)" }} />
+          <div key={i} className="h-20 rounded-lg animate-pulse bg-secondary" />
         ))}
       </div>
     );
@@ -55,28 +56,28 @@ export function ApprovalsPage() {
     <div className="max-w-[1000px] space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2.5">
-        <ShieldCheck className="w-4 h-4 text-gray-500" />
-        <h1 className="text-sm font-semibold text-white">Approvals</h1>
+        <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+        <h1 className="text-sm font-semibold text-foreground">Approvals</h1>
         {(pending?.length ?? 0) > 0 && (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
             {pending!.length} pending
           </span>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1" style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="flex gap-1 border-b border-border">
         {(["pending", "all"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
               "px-3 py-2 text-xs font-medium transition-colors relative capitalize",
-              tab === t ? "text-white" : "text-gray-500 hover:text-gray-300"
+              tab === t ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
             {t}
-            {tab === t && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-blue-500 rounded-t" />}
+            {tab === t && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary rounded-t" />}
           </button>
         ))}
       </div>
@@ -84,16 +85,13 @@ export function ApprovalsPage() {
       {/* List */}
       {approvals.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div
-            className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-            style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.2)" }}
-          >
-            <ShieldCheck className="w-6 h-6 text-yellow-400" />
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-amber-50 border border-amber-200">
+            <ShieldCheck className="w-6 h-6 text-amber-600" />
           </div>
-          <p className="text-sm font-medium text-gray-300 mb-1">
+          <p className="text-sm font-medium text-foreground mb-1">
             {tab === "pending" ? "No pending approvals" : "No approvals yet"}
           </p>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             Actions requiring approval will appear here
           </p>
         </div>
@@ -106,72 +104,71 @@ export function ApprovalsPage() {
             const isApproved = approval.status === "approved";
 
             return (
-              <div
+              <Card
                 key={approval._id}
-                className="rounded-lg overflow-hidden"
-                style={{
-                  background: isPending ? "rgba(234,179,8,0.04)" : "var(--surface-2)",
-                  border: `1px solid ${isPending ? "rgba(234,179,8,0.2)" : "var(--border)"}`,
-                }}
+                className={cn(
+                  "overflow-hidden",
+                  isPending && "border-amber-200 bg-amber-50/50"
+                )}
               >
                 <div className="px-4 py-3 flex items-start gap-4">
-                  {/* Status icon */}
                   <div
-                    className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 mt-0.5"
-                    style={{
-                      background: isPending ? "rgba(234,179,8,0.15)" : isApproved ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
-                    }}
+                    className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                      isPending ? "bg-amber-100" : isApproved ? "bg-green-100" : "bg-red-100"
+                    )}
                   >
-                    {isPending ? <Clock className="w-4 h-4 text-yellow-400" />
-                    : isApproved ? <CheckCircle2 className="w-4 h-4 text-green-400" />
-                    : <XCircle className="w-4 h-4 text-red-400" />}
+                    {isPending ? <Clock className="w-4 h-4 text-amber-600" />
+                    : isApproved ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    : <XCircle className="w-4 h-4 text-red-600" />}
                   </div>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       {agent && (
-                        <span className={cn("text-xs font-bold", roleColors[agent.role] ?? "text-gray-400")}>
+                        <span className={cn("text-xs font-bold", roleColors[agent.role] ?? "text-zinc-400")}>
                           {agent.role}
                         </span>
                       )}
-                      <span className={cn("text-xs font-semibold", isPending ? "text-yellow-300" : isApproved ? "text-green-300" : "text-red-300")}>
+                      <span className={cn("text-xs font-semibold",
+                        isPending ? "text-amber-700" : isApproved ? "text-green-700" : "text-red-700"
+                      )}>
                         {approval.action}
                       </span>
-                      <span className="text-[10px] text-gray-600 ml-auto">
+                      <span className="text-[10px] text-muted-foreground/60 ml-auto">
                         {timeAgo(approval._creationTime)}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap">
+                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
                       {approval.details}
                     </p>
                   </div>
 
-                  {/* Action buttons */}
                   {isPending && (
                     <div className="flex items-center gap-2 shrink-0">
-                      <button
+                      <Button
+                        size="sm"
                         onClick={() => resolve(approval._id, "approve")}
                         disabled={busy}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-green-300 disabled:opacity-50 transition-all hover:brightness-110"
-                        style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)" }}
+                        className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25"
                       >
                         <Check className="w-3 h-3" />
-                        {busy ? "…" : "Approve"}
-                      </button>
-                      <button
+                        {busy ? "..." : "Approve"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => resolve(approval._id, "deny")}
                         disabled={busy}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-red-300 disabled:opacity-50 transition-all hover:brightness-110"
-                        style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}
+                        className="bg-red-500/10 text-red-400 border-red-500/25 hover:bg-red-500/20"
                       >
                         <X className="w-3 h-3" />
-                        {busy ? "…" : "Deny"}
-                      </button>
+                        {busy ? "..." : "Deny"}
+                      </Button>
                     </div>
                   )}
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>

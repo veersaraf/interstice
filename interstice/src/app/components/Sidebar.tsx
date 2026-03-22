@@ -10,11 +10,20 @@ import {
   ShieldCheck,
   MessageSquare,
   Zap,
-  BookOpen,
+  Target,
   Users,
   FileText,
+  Search,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { ScrollArea } from "../../components/ui/scroll-area";
+import { Separator } from "../../components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../components/ui/tooltip";
 
 const navSections = [
   {
@@ -42,7 +51,7 @@ const navSections = [
   {
     label: "Company",
     items: [
-      { id: "goals",     label: "Goals",     icon: BookOpen },
+      { id: "goals",     label: "Goals",     icon: Target },
       { id: "contacts",  label: "Contacts",  icon: Users },
     ],
   },
@@ -56,102 +65,148 @@ interface SidebarProps {
 export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
   const agents = useQuery(api.agents.list);
   const approvals = useQuery(api.approvals.listPending);
-  const findings = useQuery(api.findings.list);
+
   const activeAgents = agents?.filter((a) => a.status === "active") ?? [];
   const pendingApprovals = approvals?.length ?? 0;
-  const findingsCount = findings?.length ?? 0;
 
-  const getBadge = (id: string): { value: number; color: string } | null => {
-    if (id === "approvals" && pendingApprovals > 0) return { value: pendingApprovals, color: "bg-yellow-500/20 text-yellow-400" };
-    if (id === "findings" && findingsCount > 0) return { value: findingsCount, color: "bg-cyan-500/20 text-cyan-400" };
+  const getBadge = (id: string): { value: number; variant: string } | null => {
+    if (id === "approvals" && pendingApprovals > 0) return { value: pendingApprovals, variant: "warning" };
     return null;
   };
 
   return (
-    <aside
-      style={{ backgroundColor: "var(--surface-1)", borderRight: "1px solid var(--border)" }}
-      className="w-56 h-full flex flex-col shrink-0"
-    >
-      {/* Logo */}
-      <div className="px-4 h-12 flex items-center gap-2.5 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center shrink-0">
-          <Zap className="w-3.5 h-3.5 text-white" />
-        </div>
-        <span className="text-sm font-bold text-white tracking-tight">Interstice</span>
-        {activeAgents.length > 0 && (
-          <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            {activeAgents.length}
-          </span>
-        )}
-      </div>
-
-      {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto py-2 px-2 flex flex-col gap-3">
-        {navSections.map((section, si) => (
-          <div key={si}>
-            {section.label && (
-              <p className="text-[10px] font-semibold text-gray-700 uppercase tracking-wider px-3 mb-1">
-                {section.label}
-              </p>
-            )}
-            <div className="flex flex-col gap-0.5">
-              {section.items.map(({ id, label, icon: Icon }) => {
-                const isActive = activeSection === id;
-                const badge = getBadge(id);
-
-                return (
-                  <button
-                    key={id}
-                    onClick={() => onNavigate(id)}
-                    className={cn(
-                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors text-left",
-                      isActive
-                        ? "bg-white/[0.08] text-white"
-                        : "text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]"
-                    )}
-                  >
-                    <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-blue-400" : "")} />
-                    <span className="truncate">{label}</span>
-                    {badge && (
-                      <span className={cn("ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full", badge.color)}>
-                        {badge.value}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+    <TooltipProvider delayDuration={0}>
+      <aside className="w-60 h-full flex flex-col shrink-0 bg-sidebar border-r border-sidebar-border">
+        {/* Brand */}
+        <div className="h-12 px-4 flex items-center gap-2.5 shrink-0 border-b border-sidebar-border">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/25">
+            <Zap className="w-3.5 h-3.5 text-white" />
           </div>
-        ))}
-      </nav>
-
-      {/* Agents status footer */}
-      <div className="px-3 py-3 shrink-0" style={{ borderTop: "1px solid var(--border)" }}>
-        <p className="text-[10px] font-semibold text-gray-700 uppercase tracking-wider mb-2">
-          Agents
-        </p>
-        <div className="space-y-1.5">
-          {agents?.slice(0, 5).map((agent) => (
-            <div key={agent._id} className="flex items-center gap-2">
-              <div
-                className={cn(
-                  "w-1.5 h-1.5 rounded-full shrink-0",
-                  agent.status === "active"
-                    ? "bg-green-400 shadow-[0_0_6px_rgba(34,197,94,0.8)]"
-                    : agent.status === "error"
-                      ? "bg-red-400"
-                      : "bg-gray-700"
-                )}
-              />
-              <span className="text-[11px] text-gray-500 truncate flex-1">{agent.role}</span>
-              {agent.status === "active" && (
-                <span className="text-[9px] text-green-500 font-medium">LIVE</span>
-              )}
-            </div>
-          ))}
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-bold text-foreground tracking-tight leading-none">
+              Interstice
+            </span>
+            <span className="text-[10px] text-muted-foreground leading-none mt-0.5">
+              Agent Orchestration
+            </span>
+          </div>
+          {activeAgents.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 tabular-nums">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  {activeAgents.length}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {activeAgents.length} agent{activeAgents.length !== 1 ? "s" : ""} running
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
-      </div>
-    </aside>
+
+        {/* Search bar area */}
+        <div className="px-3 py-2 shrink-0">
+          <button
+            className="w-full flex items-center gap-2 h-8 px-2.5 rounded-md text-xs text-muted-foreground bg-sidebar-accent/50 hover:bg-sidebar-accent transition-colors"
+            onClick={() => {}}
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>Search...</span>
+            <kbd className="ml-auto text-[10px] font-mono bg-sidebar border border-sidebar-border px-1.5 py-0.5 rounded">
+              /
+            </kbd>
+          </button>
+        </div>
+
+        <Separator className="bg-sidebar-border" />
+
+        {/* Nav sections */}
+        <ScrollArea className="flex-1">
+          <nav className="py-2 px-2 flex flex-col gap-4">
+            {navSections.map((section, si) => (
+              <div key={si}>
+                {section.label && (
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">
+                    {section.label}
+                  </p>
+                )}
+                <div className="flex flex-col gap-0.5">
+                  {section.items.map(({ id, label, icon: Icon }) => {
+                    const isActive = activeSection === id;
+                    const badge = getBadge(id);
+
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => onNavigate(id)}
+                        className={cn(
+                          "w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-all text-left group",
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent"
+                        )}
+                      >
+                        <Icon
+                          className={cn(
+                            "w-4 h-4 shrink-0 transition-colors",
+                            isActive
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover:text-sidebar-foreground"
+                          )}
+                        />
+                        <span className="truncate">{label}</span>
+                        {badge && (
+                          <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 tabular-nums">
+                            {badge.value}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </ScrollArea>
+
+        <Separator className="bg-sidebar-border" />
+
+        {/* Agents status footer */}
+        <div className="px-3 py-3 shrink-0">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 px-0.5">
+            Agents
+          </p>
+          <div className="space-y-1">
+            {agents?.slice(0, 5).map((agent) => (
+              <button
+                key={agent._id}
+                onClick={() => onNavigate("agents")}
+                className="w-full flex items-center gap-2.5 px-1.5 py-1 rounded-md hover:bg-sidebar-accent transition-colors group"
+              >
+                <div
+                  className={cn(
+                    "w-2 h-2 rounded-full shrink-0 transition-shadow",
+                    agent.status === "active"
+                      ? "bg-green-500 shadow-[0_0_6px_rgba(22,163,74,0.4)]"
+                      : agent.status === "error"
+                        ? "bg-red-500 shadow-[0_0_6px_rgba(220,38,38,0.3)]"
+                        : "bg-stone-300"
+                  )}
+                />
+                <span className="text-[11px] text-muted-foreground group-hover:text-foreground truncate flex-1 text-left capitalize">
+                  {agent.role}
+                </span>
+                {agent.status === "active" && (
+                  <span className="text-[9px] text-green-600 font-bold tracking-wide">
+                    LIVE
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </aside>
+    </TooltipProvider>
   );
 }

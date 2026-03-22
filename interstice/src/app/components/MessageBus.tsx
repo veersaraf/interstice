@@ -5,11 +5,11 @@ import { api } from "../../../convex/_generated/api";
 import { ArrowRight } from "lucide-react";
 
 const roleColors: Record<string, string> = {
-  CEO:            "text-yellow-400",
-  Research:       "text-blue-400",
-  Communications: "text-purple-400",
-  Developer:      "text-green-400",
-  Call:           "text-orange-400",
+  CEO:            "text-amber-700",
+  Research:       "text-blue-700",
+  Communications: "text-purple-700",
+  Developer:      "text-emerald-700",
+  Call:           "text-orange-700",
 };
 
 export function MessageBus() {

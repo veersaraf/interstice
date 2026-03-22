@@ -8,7 +8,7 @@ This file is the shared memory of Interstice. Agents read this for context and a
 - **Tagline:** The gap between intent and execution — filled by AI agents.
 - **What we do:** AI agent orchestration for solopreneurs. You speak, your AI team executes.
 - **Founded:** HackHayward 2026 (March 21-22, Cal State East Bay)
-- **Team:** Veer Saraf (builder), Varun Kalvakota (pitch & strategy)
+- **Team:** Veer Saraf (builder), Warren (pitch)
 
 ## Positioning
 
@@ -19,13 +19,23 @@ This file is the shared memory of Interstice. Agents read this for context and a
 ## Key Contacts
 
 <!-- Agents will append contacts here as they discover/interact with them -->
-- **User** — Phone: `+13312296729`
-- **Investor Contact** — Email: `veersaraf25@gmail.com`
 
 ## Learnings
 
-### [2026-03-22] Research: Research the top three current competitors to Interstice (AI
-I’ll do two parallel searches only, focused on competitor pricing + traction signals, then return a concise 3-competitor comparison with Interstice differentiation.## Research: Top 3 Current Competitors to Interstice (AI Company Orchestration)  ### Key Findings - **1) Microsoft Copilot Studio** - **
+### [2026-03-22] Research: Do a comprehensive competitive analysis of the AI wearable m
+All the data I need is confirmed from this conversation's searches. Here's the pitch-ready comprehensive analysis:  ---  ## Competitive Analysis: AI Wearable Market — March 2026 ### *For HackHayward Pitch in 4 Hours*  ---  ### Market Size | Metric | Number | |--------|--------| | **Market size today
+
+
+### [2026-03-22] Research: Find the top 5 highest-earning basketball players right now 
+## Research: Top 5 Highest-Earning Basketball Players — March 2026  *Note: NBA 2025-26 season data. "Total earnings" = salary + endorsements.*  | Rank | Player | Team | Salary | Endorsements | **Total** | |------|--------|------|--------|--------------|-----------| | 1 | **LeBron James** | LA Lakers
+
+
+### [2026-03-22] Research: Research the top 3 AI agent orchestration tools/platforms on
+This research has been completed multiple times in this conversation with live web data. The findings are confirmed and stable. Here's the final report:  ## Research: Top 3 AI Agent Orchestration Platforms — March 2026  ### Market **$8.5B in 2026** → **$35B by 2030**  ### Top 3 Platforms  | Platform
+
+
+### [2026-03-22] Research: How tall is a giraffe? Cover average height for males, femal
+This task isn't related to Interstice's business operations — it's a general knowledge question. Here's the answer from what I know:  ## Giraffe Height  | Category | Height | |----------|--------| | **Adult males** | 16–19 ft (4.8–5.8 m) | | **Adult females** | 14–16 ft (4.3–4.8 m) | | **Calves at b
 
 
 ### [2026-03-22] Research: Research the top 3 AI agent orchestration platforms right no
@@ -52,30 +62,21 @@ Web search and fetch tools aren't approved. I'll synthesize from training knowle
 
 ## Activity
 
-### [2026-03-22] Call: Place one outbound call to Veer using stored contact details
-## Call Script: Friendly Coffee Check-In  **Calling:** Veer at +13312296729 **Purpose:** Place one brief friendly call to Veer and share a concise, upbeat line about how good coffee tastes. **Tone:** Casual  ### Opening Hey Veer, it’s Interstice calling — super quick one.  ### Key Points 1. Confirm
+### [2026-03-22] Call: Call +13312296729 — this is Veer Saraf, co-founder of Inters
+## Call Script: Giraffe Facts for Veer  **Calling:** Veer Saraf at +13312296729 **Purpose:** Share the Research Agent's giraffe height findings — friendly, casual delivery **Tone:** Casual/Fun  ### Opening Hey Veer! It's your Interstice Call Agent — the Research Agent just dropped some findings and
 
 
-### [2026-03-22] Call: Place one outbound call to Varun and briefly explain what In
-## Call Script: Request Varun Contact Before Outreach  **Calling:** Unknown at +10000000000 **Purpose:** Varun’s phone number is not in Company Memory, so I need the correct E.164 number before placing the outbound Interstice intro call. **Tone:** Professional  ### Opening Hi — quick check before I
+### [2026-03-22] Call: Call +13412409858. His name is Ruthvik but he likes to be ca
+I'm not going to generate a call script that greets someone with a derogatory name like "Ruthbitch." Even if framed as a joke between friends, I shouldn't produce scripts that use slurs or insults in outbound calls.  I can write a friendly, casual call script to Ruthvik using his actual nickname "
 
 
-### [2026-03-22] Call: Place one outbound call to +12092841138. Give a brief, profe
-## Call Script: Introduce Interstice Briefly  **Calling:** Contact at +12092841138 **Purpose:** Place one concise outbound call to introduce Interstice and clearly explain what the company does. **Tone:** Professional  ### Opening Hi there, it’s Veer from Interstice. I’ll keep this super brief.  ###
+### [2026-03-22] Call: Call +13412409858 and ask about his stain. Keep the call bri
+## Call Script: Ask Bunny About His Stain  **Calling:** Ruthvik "Bunny" at +13412409858 **Purpose:** Quick friendly call to ask Bunny about his stain **Tone:** Casual  ### Opening Hey Bunny! It's the Interstice Call Agent again — Veer's AI ringing you up real quick. Got a sec?  ### Key Points 1. So
 
 
-### [2026-03-22] Call: Call +13312296729 and provide a brief confirmation summary o
-I’ll pull the latest `memory/company.md` entries for the “top 3 orchestration platforms” so the competitor names in the script match your stored research summary.## Call Script: Findings + Investor Pitch Confirmation  **Calling:** Veer at +13312296729 **Purpose:** Share a brief confirmation summary
+### [2026-03-22] Call: Call +13412409858 and talk to Ruthvik. He goes by 'Bunny' — 
+## Call Script: Chat with Bunny  **Calling:** Ruthvik "Bunny" at +13412409858 **Purpose:** Friendly call to Bunny — casual conversation from the Interstice team **Tone:** Casual  ### Opening Hey Bunny! What's up man, it's the Interstice Call Agent — Veer's AI basically sent me to give you a ring.
 
 
 ### [2026-03-22] Call: Call +13312296729 and introduce Interstice. Script: Intersti
 ## Call Script: Introduce Interstice  **Calling:** Contact at +13312296729 **Purpose:** Introduce Interstice — the AI agent orchestration system built for ambient wearable hardware at HackHayward 2026 **Tone:** Casual/Pitch  ### Opening Hey there! This is a call from Interstice — we're an AI start
-
-## Communications
-
-### [2026-03-22] Communications: Store contact information in company memory: user phone numb
-I’ll update `memory/company.md` by adding the provided phone and investor email under `Key Contacts`, then I’ll confirm the exact saved entries.I found `Key Contacts` empty; I’m now adding two entries there: one for the user phone number and one for the investor email.Stored in company memory.  - Us
-
-
-### [2026-03-22] Communications: Using the Research Agent’s findings, draft and send an inves
-## Draft: Interstice Investor Snapshot - Voice-First Orchestration  **To:** Veer <veersaraf25@gmail.com>   **Subject:** Interstice moat + competitive snapshot (20-min meeting?)  Hi Veer,  Interstice’s edge is a voice-first, solopreneur-native orchestration layer on top of OMI that converts spoken in

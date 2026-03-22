@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Send, Mic } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { Button } from "../../components/ui/button";
 
 export function CommandInput() {
   const [command, setCommand]   = useState("");
@@ -33,7 +34,7 @@ export function CommandInput() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent);
@@ -41,55 +42,46 @@ export function CommandInput() {
   };
 
   return (
-    <div className="space-y-2">
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+    <div className="space-y-1.5">
+      <form onSubmit={handleSubmit} className="flex items-center gap-2">
         <div className="relative flex-1">
-          <textarea
+          <input
+            type="text"
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Give your AI team a command… (Enter to send, Shift+Enter for newline)"
-            rows={1}
+            placeholder="Tell your team what to do..."
             className={cn(
-              "w-full resize-none rounded-lg px-4 py-3 pr-10 text-sm text-white",
-              "placeholder-gray-600 focus:outline-none transition-colors",
-              "leading-relaxed",
+              "w-full h-10 px-4 pr-10 rounded-lg text-sm",
+              "bg-secondary/50 border border-border text-foreground",
+              "placeholder:text-muted-foreground/40",
+              "focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40",
+              "transition-all"
             )}
-            style={{
-              background: "var(--surface-3)",
-              border: "1px solid var(--border)",
-              minHeight: "44px",
-              maxHeight: "120px",
-            }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(59,130,246,0.5)")}
-            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
             disabled={sending}
           />
-          {/* OMI indicator */}
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Mic className="w-3.5 h-3.5 text-gray-700" />
+            <Mic className="w-3.5 h-3.5 text-muted-foreground/25" />
           </div>
         </div>
 
-        <button
+        <Button
           type="submit"
+          size="sm"
           disabled={!command.trim() || sending}
           className={cn(
-            "flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-all",
-            "disabled:opacity-40 disabled:cursor-not-allowed",
+            "h-10 px-5 gap-2 text-xs font-medium rounded-lg",
+            command.trim() && !sending
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "bg-secondary text-muted-foreground"
           )}
-          style={{
-            background: command.trim() && !sending ? "#2563eb" : "var(--surface-3)",
-            border: "1px solid var(--border)",
-            color: command.trim() && !sending ? "white" : "var(--text-muted)",
-          }}
         >
           <Send className="w-3.5 h-3.5" />
-          <span>{sending ? "Sending…" : "Send"}</span>
-        </button>
+          {sending ? "Sending..." : "Send"}
+        </Button>
       </form>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-[11px] text-destructive font-medium">{error}</p>}
     </div>
   );
 }

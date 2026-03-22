@@ -5,13 +5,16 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { ShieldCheck, Check, X } from "lucide-react";
 import { Id } from "../../../convex/_generated/dataModel";
+import { cn } from "../../lib/utils";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
 
 const roleColors: Record<string, string> = {
-  CEO:            "text-yellow-400",
-  Research:       "text-blue-400",
-  Communications: "text-purple-400",
-  Developer:      "text-green-400",
-  Call:           "text-orange-400",
+  CEO:            "text-amber-700",
+  Research:       "text-blue-700",
+  Communications: "text-purple-700",
+  Developer:      "text-emerald-700",
+  Call:           "text-orange-700",
 };
 
 export function ApprovalQueue() {
@@ -45,61 +48,55 @@ export function ApprovalQueue() {
         const busy  = resolving === approval._id;
 
         return (
-          <div
+          <Card
             key={approval._id}
-            className="rounded-lg p-4 flex items-start gap-4"
-            style={{
-              background: "rgba(234,179,8,0.06)",
-              border: "1px solid rgba(234,179,8,0.25)",
-            }}
+            className="p-4 flex items-start gap-4 border-amber-200 bg-amber-50"
           >
             {/* Icon */}
-            <div
-              className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
-              style={{ background: "rgba(234,179,8,0.15)" }}
-            >
-              <ShieldCheck className="w-4 h-4 text-yellow-400" />
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-amber-100 border border-amber-200">
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
             </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
+              <div className="flex items-center gap-2 mb-1">
                 {agent && (
-                  <span className={`text-xs font-bold ${roleColors[agent.role] ?? "text-gray-400"}`}>
+                  <span className={cn("text-xs font-bold", roleColors[agent.role] ?? "text-zinc-400")}>
                     {agent.role}
                   </span>
                 )}
-                <span className="text-xs font-semibold text-yellow-300">
+                <span className="text-xs font-semibold text-amber-700">
                   wants to: {approval.action}
                 </span>
               </div>
-              <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap">
+              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
                 {approval.details}
               </p>
             </div>
 
-            {/* Buttons */}
+            {/* Actions */}
             <div className="flex items-center gap-2 shrink-0">
-              <button
+              <Button
+                size="sm"
                 onClick={() => resolve(approval._id, "approve")}
                 disabled={busy}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-green-300 disabled:opacity-50 transition-opacity"
-                style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)" }}
+                className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:text-green-800"
               >
                 <Check className="w-3 h-3" />
-                {busy ? "…" : "Approve"}
-              </button>
-              <button
+                {busy ? "..." : "Approve"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={() => resolve(approval._id, "deny")}
                 disabled={busy}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-red-300 disabled:opacity-50 transition-opacity"
-                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}
+                className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:text-red-800"
               >
                 <X className="w-3 h-3" />
-                {busy ? "…" : "Deny"}
-              </button>
+                {busy ? "..." : "Deny"}
+              </Button>
             </div>
-          </div>
+          </Card>
         );
       })}
     </div>

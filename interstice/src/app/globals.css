@@ -1,80 +1,210 @@
 @import "tailwindcss";
 
-/* ─── Design Tokens ─────────────────────────────────────────────────── */
+/* ─── Design Tokens: Light Retro-Futuristic ─────────────────────── */
 :root {
-  /* Base */
-  --background: #030712;
-  --foreground: #f9fafb;
+  /* Base — warm cream/off-white */
+  --background: #faf8f5;
+  --foreground: #1a1a1a;
 
-  /* Surfaces */
-  --surface-1: #0a0f1a;    /* sidebar, panels */
-  --surface-2: #111827;    /* cards */
-  --surface-3: #1f2937;    /* elevated cards */
+  /* Card / Popover — soft white with warmth */
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
 
-  /* Borders */
-  --border: #1f2937;
-  --border-subtle: #111827;
+  /* Primary — warm coral-orange (retro) */
+  --primary: #e8734a;
+  --primary-foreground: #ffffff;
 
-  /* Text */
-  --text-primary: #f9fafb;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  /* Secondary — soft warm gray */
+  --secondary: #f0ede8;
+  --secondary-foreground: #2d2d2d;
 
-  /* Accents */
+  /* Muted */
+  --muted: #f5f2ed;
+  --muted-foreground: #78716c;
+
+  /* Accent (hover states) */
+  --accent: #f0ede8;
+  --accent-foreground: #1a1a1a;
+
+  /* Destructive */
+  --destructive: #dc4a3a;
+  --destructive-foreground: #ffffff;
+
+  /* Border + Input + Ring */
+  --border: #e7e2db;
+  --input: #e7e2db;
+  --ring: #e8734a;
+
+  /* Surfaces (layered depth) */
+  --surface-0: #faf8f5;
+  --surface-1: #ffffff;
+  --surface-2: #f5f2ed;
+  --surface-3: #e7e2db;
+
+  /* Sidebar — slightly warmer off-white */
+  --sidebar: #f5f2ed;
+  --sidebar-foreground: #57534e;
+  --sidebar-border: #e7e2db;
+  --sidebar-accent: #ebe7e0;
+  --sidebar-accent-foreground: #1a1a1a;
+
+  /* Semantic accents — softer, warmer versions */
+  --accent-amber: #d97706;
+  --accent-amber-dim: rgba(217, 119, 6, 0.08);
   --accent-blue: #3b82f6;
-  --accent-blue-dim: rgba(59, 130, 246, 0.15);
-  --accent-green: #22c55e;
-  --accent-green-dim: rgba(34, 197, 94, 0.15);
-  --accent-yellow: #eab308;
-  --accent-yellow-dim: rgba(234, 179, 8, 0.15);
-  --accent-red: #ef4444;
-  --accent-red-dim: rgba(239, 68, 68, 0.15);
-  --accent-purple: #a855f7;
-  --accent-purple-dim: rgba(168, 85, 247, 0.15);
-  --accent-orange: #f97316;
-  --accent-orange-dim: rgba(249, 115, 22, 0.15);
+  --accent-blue-dim: rgba(59, 130, 246, 0.08);
+  --accent-green: #16a34a;
+  --accent-green-dim: rgba(22, 163, 74, 0.08);
+  --accent-yellow: #ca8a04;
+  --accent-yellow-dim: rgba(202, 138, 4, 0.08);
+  --accent-red: #dc2626;
+  --accent-red-dim: rgba(220, 38, 38, 0.08);
+  --accent-purple: #9333ea;
+  --accent-purple-dim: rgba(147, 51, 234, 0.08);
+  --accent-orange: #ea580c;
+  --accent-orange-dim: rgba(234, 88, 12, 0.08);
+  --accent-cyan: #0891b2;
+  --accent-cyan-dim: rgba(8, 145, 178, 0.08);
+
+  /* Radius — slightly rounder for retro-soft feel */
+  --radius: 0.75rem;
 }
 
+/* ─── Tailwind v4 theme mapping ──────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 
+/* ─── Base ────────────────────────────────────────────────────────── */
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-/* ─── Agent Status Animations ───────────────────────────────────────── */
+* {
+  border-color: var(--border);
+}
+
+/* ─── Agent Status Animations ────────────────────────────────────── */
 @keyframes pulse-glow-green {
-  0%, 100% { box-shadow: 0 0 6px 1px rgba(34, 197, 94, 0.2); }
-  50%       { box-shadow: 0 0 16px 4px rgba(34, 197, 94, 0.5); }
+  0%, 100% { box-shadow: 0 0 6px 1px rgba(22, 163, 74, 0.15); }
+  50%       { box-shadow: 0 0 14px 3px rgba(22, 163, 74, 0.35); }
 }
 @keyframes pulse-glow-blue {
-  0%, 100% { box-shadow: 0 0 6px 1px rgba(59, 130, 246, 0.2); }
-  50%       { box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.5); }
+  0%, 100% { box-shadow: 0 0 6px 1px rgba(59, 130, 246, 0.15); }
+  50%       { box-shadow: 0 0 14px 3px rgba(59, 130, 246, 0.35); }
 }
 @keyframes activity-enter {
-  from { opacity: 0; transform: translateY(-4px); background: rgba(59, 130, 246, 0.1); }
-  to   { opacity: 1; transform: translateY(0);    background: transparent; }
+  0%   { opacity: 0; transform: translateY(-6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .agent-active    { animation: pulse-glow-green 2s ease-in-out infinite; }
 .agent-running   { animation: pulse-glow-blue 1.5s ease-in-out infinite; }
-.activity-enter  { animation: activity-enter 0.4s ease-out forwards; }
+.activity-enter  { animation: activity-enter 0.35s ease-out forwards; }
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
+.animate-slide-up { animation: slide-up 0.3s ease-out; }
 
-/* ─── Scrollbar ─────────────────────────────────────────────────────── */
-::-webkit-scrollbar       { width: 4px; height: 4px; }
+/* ─── Agent World Animations ─────────────────────────────────────── */
+@keyframes bubble-float {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.9); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  85%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-4px) scale(0.95); }
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+@keyframes walk-cycle {
+  0%, 100% { transform: scaleX(1) scaleY(1); }
+  25%      { transform: scaleX(0.97) scaleY(1.03); }
+  75%      { transform: scaleX(1.03) scaleY(0.97); }
+}
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(12deg); }
+  75%      { transform: rotate(-8deg); }
+}
+@keyframes float-dot {
+  0%, 100% { transform: translateY(0); opacity: 0.3; }
+  50%      { transform: translateY(-8px); opacity: 0.6; }
+}
+
+.animate-bubble-float { animation: bubble-float 5s ease-in-out forwards; }
+.animate-bob    { animation: bob 2s ease-in-out infinite; }
+.animate-walk   { animation: walk-cycle 0.6s ease-in-out infinite; }
+.animate-wave   { animation: wave 1.5s ease-in-out infinite; }
+.animate-float-dot { animation: float-dot 4s ease-in-out infinite; }
+
+/* ─── UI Transitions ──────────────────────────────────────────────── */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in { animation: scale-in 0.2s ease-out; }
+
+/* ─── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
 
-/* ─── Sidebar nav active ────────────────────────────────────────────── */
+/* ─── Sidebar nav active ─────────────────────────────────────────── */
 .nav-active {
-  background: rgba(59, 130, 246, 0.12);
-  color: #93c5fd;
-  border-right: 2px solid #3b82f6;
+  background: var(--accent-orange-dim);
+  color: var(--primary);
+}
+
+/* ─── Retro button feel ──────────────────────────────────────────── */
+.btn-retro {
+  box-shadow: 0 2px 0 0 rgba(0,0,0,0.08);
+  transition: all 0.15s ease;
+}
+.btn-retro:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 0 rgba(0,0,0,0.1);
+}
+.btn-retro:active {
+  transform: translateY(1px);
+  box-shadow: 0 0 0 0 rgba(0,0,0,0.08);
 }
