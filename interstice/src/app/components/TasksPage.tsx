@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
 import { timeAgo } from "../../lib/utils";
@@ -13,10 +13,21 @@ import {
   Clock,
   Zap,
   FileText,
+  Download,
+  Eye,
+  ExternalLink,
+  MessageSquare,
+  ListTodo,
+  Send,
+  User,
+  Play,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { Badge } from "../../components/ui/badge";
 import { Id } from "../../../convex/_generated/dataModel";
+import ReactMarkdown from "react-markdown";
 
 /* ------------------------------------------------------------------ */
 /*  Status & role config                                               */
@@ -101,7 +112,37 @@ const actionLabels: Record<string, { label: string; color: string }> = {
   approval_requested: { label: "APPROVAL", color: "bg-amber-50 text-amber-700" },
   files_written:    { label: "FILE", color: "bg-emerald-50 text-emerald-700" },
   task_cancelled:   { label: "CANCELLED", color: "bg-stone-100 text-stone-500" },
+  user_comment:     { label: "YOU", color: "bg-primary/10 text-primary" },
 };
+
+/* ------------------------------------------------------------------ */
+/*  Output format detection (heuristic until INT-33 adds outputFormat) */
+/* ------------------------------------------------------------------ */
+
+function detectOutputFormat(output: string, explicitFormat?: string): "markdown" | "html" | "text" {
+  if (explicitFormat === "html" || explicitFormat === "markdown" || explicitFormat === "text") {
+    return explicitFormat;
+  }
+  const trimmed = output.trim();
+
+  // HTML: starts with doctype/html tag, or has substantial HTML structure
+  if (
+    /^<!doctype\s+html/i.test(trimmed) ||
+    /^<html[\s>]/i.test(trimmed) ||
+    (/<\/(div|section|article|main|body|head)>/i.test(trimmed) && trimmed.length > 200)
+  ) {
+    return "html";
+  }
+
+  // Markdown: headers, lists, code blocks, bold, links, tables
+  const mdSignals = [
+    /^#{1,6}\s/m, /^\s*[-*]\s/m, /^\s*\d+\.\s/m, /```/,
+    /\*\*[^*]+\*\*/, /\[.+?\]\(.+?\)/, /^\s*>\s/m, /\|.+\|.+\|/,
+  ];
+  if (mdSignals.filter((re) => re.test(trimmed)).length >= 2) return "markdown";
+
+  return "text";
+}
 
 /* ------------------------------------------------------------------ */
 /*  TasksPage                                                          */
@@ -494,12 +535,62 @@ interface TaskDetailPanelProps {
   onClose: () => void;
 }
 
+type DetailTab = "overview" | "output" | "activity" | "subtasks";
+
 function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }: TaskDetailPanelProps) {
   const activity = useQuery(api.activity.getByTask, { taskId });
+  const addComment = useMutation(api.activity.addUserComment);
   const status = task.status as TaskStatus;
   const meta = statusMeta[status] ?? statusMeta.pending;
   const role = agent?.role ?? "";
   const rc = roleColors[role];
+
+  // Default to output tab for completed tasks, overview otherwise
+  const defaultTab: DetailTab = (status === "done" && task.output) ? "output" : "overview";
+  const [activeTab, setActiveTab] = useState<DetailTab>(defaultTab);
+  const [commentText, setCommentText] = useState("");
+  const commentInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSendComment = async () => {
+    const text = commentText.trim();
+    if (!text) return;
+    setCommentText("");
+    await addComment({ taskId, content: text });
+  };
+
+  // Compute timeline events from activity
+  const timelineEvents = useMemo(() => {
+    const events: Array<{ time: number; icon: string; label: string; detail?: string }> = [];
+    events.push({ time: task._creationTime, icon: "create", label: "Task created" });
+    if (task.startedAt) events.push({ time: task.startedAt, icon: "start", label: "Execution started", detail: agent ? `Assigned to ${role}` : undefined });
+    // Extract delegation events from activity
+    if (activity) {
+      for (const entry of activity) {
+        if (entry.action === "delegated" || entry.action === "delegation_complete") {
+          events.push({ time: entry._creationTime, icon: "delegate", label: "Delegated", detail: entry.content.slice(0, 80) });
+        }
+        if (entry.action === "findings_posted") {
+          events.push({ time: entry._creationTime, icon: "findings", label: "Findings shared", detail: entry.content.slice(0, 80) });
+        }
+        if (entry.action === "approval_requested") {
+          events.push({ time: entry._creationTime, icon: "approval", label: "Approval requested" });
+        }
+      }
+    }
+    if (task.completedAt) events.push({ time: task.completedAt, icon: "done", label: status === "cancelled" ? "Cancelled" : "Completed" });
+    events.sort((a, b) => a.time - b.time);
+    return events;
+  }, [task, activity, agent, role, status]);
+
+  const doneCount = childTasks.filter((c) => c.status === "done").length;
+  const activityCount = activity?.length ?? 0;
+
+  const tabs: Array<{ id: DetailTab; label: string; icon: React.ReactNode; count?: number }> = [
+    { id: "overview", label: "Overview", icon: <Eye className="w-3.5 h-3.5" /> },
+    ...(task.output ? [{ id: "output" as DetailTab, label: "Output", icon: <FileText className="w-3.5 h-3.5" /> }] : []),
+    { id: "activity", label: "Activity", icon: <MessageSquare className="w-3.5 h-3.5" />, count: activityCount },
+    ...(childTasks.length > 0 ? [{ id: "subtasks" as DetailTab, label: "Sub-tasks", icon: <ListTodo className="w-3.5 h-3.5" />, count: childTasks.length }] : []),
+  ];
 
   return (
     <div className="flex-1 min-w-[400px] border-l border-border bg-card flex flex-col overflow-hidden ml-0">
@@ -554,160 +645,510 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
               {role}
             </span>
           )}
-          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-            <Clock className="w-3 h-3" />
-            Created {timeAgo(task._creationTime)}
-          </span>
-          {task.startedAt && (
+          {childTasks.length > 0 && (
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Zap className="w-3 h-3" />
-              Started {timeAgo(task.startedAt)}
-            </span>
-          )}
-          {task.completedAt && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-              <FileText className="w-3 h-3" />
-              Done {timeAgo(task.completedAt)}
+              <ListTodo className="w-3 h-3" />
+              {doneCount}/{childTasks.length} sub-tasks done
             </span>
           )}
         </div>
       </div>
 
-      {/* Scrollable content */}
+      {/* Tab bar */}
+      <div className="flex border-b border-border shrink-0 px-5 gap-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px",
+              activeTab === tab.id
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.count !== undefined && tab.count > 0 && (
+              <span className="text-[9px] tabular-nums opacity-60 ml-0.5">{tab.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
       <div className="flex-1 overflow-y-auto">
-        {/* Sub-tasks section */}
-        {childTasks.length > 0 && (
-          <div className="px-5 py-4 border-b border-border/50">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
-              Sub-tasks ({childTasks.length})
-            </p>
-            <div className="space-y-1.5">
-              {childTasks.map((child) => {
-                const childStatus = child.status as TaskStatus;
-                const childMeta = statusMeta[childStatus] ?? statusMeta.pending;
-                const childAgent = child.agentId ? agentMap.get(child.agentId) ?? null : null;
-                const childRole = childAgent?.role ?? "";
-                const childRc = roleColors[childRole];
-
-                return (
-                  <div
-                    key={child._id}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-muted/30 border border-border/30"
-                  >
-                    <StatusDot status={childStatus} size="sm" />
-                    <span className="flex-1 min-w-0 truncate text-xs text-foreground">
-                      {cleanInput(child.input).slice(0, 80)}
-                    </span>
-                    {childAgent && (
+        {/* Overview tab — timeline + summary */}
+        {activeTab === "overview" && (
+          <div className="px-5 py-4 space-y-5">
+            {/* Work history timeline */}
+            <div>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                Timeline
+              </p>
+              <div className="relative pl-5">
+                {/* Vertical line */}
+                <div className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+                <div className="space-y-3">
+                  {timelineEvents.map((evt, i) => (
+                    <div key={i} className="relative flex items-start gap-3">
+                      {/* Dot */}
                       <span className={cn(
-                        "shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold",
-                        childRc?.bg ?? "bg-stone-50", childRc?.text ?? "text-stone-600"
+                        "absolute -left-5 top-0.5 w-3.5 h-3.5 rounded-full border-2 bg-card flex items-center justify-center",
+                        evt.icon === "done" ? "border-green-500" :
+                        evt.icon === "start" ? "border-blue-500" :
+                        evt.icon === "delegate" ? "border-amber-500" :
+                        evt.icon === "findings" ? "border-purple-500" :
+                        evt.icon === "approval" ? "border-amber-500" :
+                        "border-stone-400"
                       )}>
-                        <img src={roleAvatar[childRole] ?? ""} alt={childRole} className="w-3 h-3 rounded-full object-cover" />
-                        {childRole}
+                        {evt.icon === "done" && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
+                        {evt.icon === "start" && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
                       </span>
-                    )}
-                    <Badge
-                      variant={
-                        childStatus === "in_progress" ? "info"
-                          : childStatus === "done" ? "success"
-                            : childStatus === "pending_approval" ? "warning"
-                              : "secondary"
-                      }
-                      className="text-[9px] px-1.5 py-0 h-4 shrink-0"
-                    >
-                      {childMeta.label}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Output section */}
-        {task.output && (
-          <div className="px-5 py-4 border-b border-border/50">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
-              Output
-            </p>
-            <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto font-mono bg-muted/20 rounded-lg p-3 border border-border/50">
-              {task.output}
-            </div>
-          </div>
-        )}
-
-        {/* Activity / Comments feed */}
-        <div className="px-5 py-4">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Activity ({activity?.length ?? 0})
-          </p>
-
-          {!activity ? (
-            <div className="space-y-2">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-10 rounded-lg animate-pulse bg-secondary/40" />
-              ))}
-            </div>
-          ) : activity.length === 0 ? (
-            <p className="text-xs text-muted-foreground/60 italic py-4 text-center">
-              No activity yet
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {activity.map((entry) => {
-                const entryAgent = entry.agentId ? agentMap.get(entry.agentId) ?? null : null;
-                const entryRole = entryAgent?.role ?? "";
-                const entryRc = roleColors[entryRole];
-                const al = actionLabels[entry.action] ?? { label: entry.action.toUpperCase(), color: "bg-stone-100 text-stone-600" };
-                const isOutput = entry.action === "agent_output";
-
-                return (
-                  <div
-                    key={entry._id}
-                    className={cn(
-                      "rounded-lg border border-border/30 px-3 py-2",
-                      isOutput ? "bg-muted/10" : "bg-muted/30"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      {entryAgent && (
-                        <span className={cn(
-                          "inline-flex items-center gap-1 text-[9px] font-semibold",
-                          entryRc?.text ?? "text-stone-600"
-                        )}>
-                          <img src={roleAvatar[entryRole] ?? ""} alt={entryRole} className="w-3.5 h-3.5 rounded-full object-cover" />
-                          {entryRole}
-                        </span>
-                      )}
-                      <span className={cn(
-                        "text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider",
-                        al.color
-                      )}>
-                        {al.label}
-                      </span>
-                      <span className="text-[9px] text-muted-foreground/50 ml-auto tabular-nums">
-                        {timeAgo(entry._creationTime)}
-                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground">{evt.label}</p>
+                        {evt.detail && <p className="text-[10px] text-muted-foreground truncate">{evt.detail}</p>}
+                        <p className="text-[9px] text-muted-foreground/50 tabular-nums">{timeAgo(evt.time)}</p>
+                      </div>
                     </div>
-                    <p className={cn(
-                      "text-xs leading-relaxed",
-                      isOutput
-                        ? "text-foreground/70 font-mono whitespace-pre-wrap max-h-32 overflow-y-auto"
-                        : "text-foreground/80"
-                    )}>
-                      {entry.content.length > 500
-                        ? entry.content.slice(0, 500) + "…"
-                        : entry.content}
-                    </p>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* Duration */}
+            {task.startedAt && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/30 border border-border/30">
+                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  Duration: {task.completedAt
+                    ? formatDuration(task.completedAt - task.startedAt)
+                    : `Running for ${formatDuration(Date.now() - task.startedAt)}`
+                  }
+                </span>
+              </div>
+            )}
+
+            {/* Quick output preview if available */}
+            {task.output && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Output preview
+                  </p>
+                  <button
+                    onClick={() => setActiveTab("output")}
+                    className="text-[10px] text-primary hover:text-primary/80 font-medium"
+                  >
+                    View full output
+                  </button>
+                </div>
+                <div className="text-xs text-foreground/70 leading-relaxed bg-muted/20 rounded-xl p-3 border border-border/30 max-h-32 overflow-hidden relative">
+                  {task.output.slice(0, 300)}
+                  {task.output.length > 300 && (
+                    <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-card to-transparent" />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Output tab — rich rendering */}
+        {activeTab === "output" && task.output && (
+          <TaskOutputSection output={task.output} />
+        )}
+
+        {/* Activity tab — comments + activity feed */}
+        {activeTab === "activity" && (
+          <div className="flex flex-col h-full">
+            <div className="flex-1 px-5 py-4 overflow-y-auto">
+              {!activity ? (
+                <div className="space-y-2">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="h-10 rounded-lg animate-pulse bg-secondary/40" />
+                  ))}
+                </div>
+              ) : activity.length === 0 ? (
+                <p className="text-xs text-muted-foreground/60 italic py-8 text-center">
+                  No activity yet
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {activity.map((entry) => {
+                    const entryAgent = entry.agentId ? agentMap.get(entry.agentId) ?? null : null;
+                    const entryRole = entryAgent?.role ?? "";
+                    const entryRc = roleColors[entryRole];
+                    const isUserComment = entry.action === "user_comment";
+                    const al = isUserComment
+                      ? { label: "YOU", color: "bg-primary/10 text-primary" }
+                      : (actionLabels[entry.action] ?? { label: entry.action.toUpperCase(), color: "bg-stone-100 text-stone-600" });
+                    const isOutput = entry.action === "agent_output";
+
+                    return (
+                      <div
+                        key={entry._id}
+                        className={cn(
+                          "rounded-lg border px-3 py-2",
+                          isUserComment
+                            ? "bg-primary/5 border-primary/20"
+                            : isOutput ? "bg-muted/10 border-border/30" : "bg-muted/30 border-border/30"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          {isUserComment ? (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-primary">
+                              <User className="w-3 h-3" />
+                              You
+                            </span>
+                          ) : entryAgent ? (
+                            <span className={cn(
+                              "inline-flex items-center gap-1 text-[9px] font-semibold",
+                              entryRc?.text ?? "text-stone-600"
+                            )}>
+                              <img src={roleAvatar[entryRole] ?? ""} alt={entryRole} className="w-3.5 h-3.5 rounded-full object-cover" />
+                              {entryRole}
+                            </span>
+                          ) : null}
+                          <span className={cn(
+                            "text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider",
+                            al.color
+                          )}>
+                            {al.label}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground/50 ml-auto tabular-nums">
+                            {timeAgo(entry._creationTime)}
+                          </span>
+                        </div>
+                        <p className={cn(
+                          "text-xs leading-relaxed",
+                          isOutput
+                            ? "text-foreground/70 font-mono whitespace-pre-wrap max-h-32 overflow-y-auto"
+                            : "text-foreground/80"
+                        )}>
+                          {entry.content.length > 500
+                            ? entry.content.slice(0, 500) + "…"
+                            : entry.content}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Comment input */}
+            <div className="px-5 py-3 border-t border-border shrink-0 bg-card">
+              <div className="flex items-center gap-2">
+                <input
+                  ref={commentInputRef}
+                  type="text"
+                  placeholder="Add a comment..."
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSendComment(); }}
+                  className="flex-1 h-8 px-3 rounded-lg border border-border bg-transparent text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button
+                  onClick={handleSendComment}
+                  disabled={!commentText.trim()}
+                  className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+                    commentText.trim()
+                      ? "bg-primary text-white hover:bg-primary/90"
+                      : "bg-secondary text-muted-foreground cursor-not-allowed"
+                  )}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sub-tasks tab */}
+        {activeTab === "subtasks" && childTasks.length > 0 && (
+          <SubtasksSection childTasks={childTasks} agentMap={agentMap} />
+        )}
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  TaskOutputSection — rich rendered output with format detection      */
+/* ------------------------------------------------------------------ */
+
+function TaskOutputSection({ output }: { output: string }) {
+  const [htmlPreviewOpen, setHtmlPreviewOpen] = useState(false);
+  const format = useMemo(() => detectOutputFormat(output), [output]);
+
+  return (
+    <div className="px-5 py-4 border-b border-border/50">
+      <div className="flex items-center justify-between mb-2.5">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+          Output
+        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider">
+            {format}
+          </span>
+          <DownloadTextButton
+            content={output}
+            filename={format === "html" ? "output.html" : format === "markdown" ? "output.md" : "output.txt"}
+            mimeType={format === "html" ? "text/html" : "text/plain"}
+          />
+        </div>
+      </div>
+
+      {format === "html" ? (
+        <div className="space-y-2">
+          <button
+            onClick={() => setHtmlPreviewOpen(!htmlPreviewOpen)}
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors font-medium"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            {htmlPreviewOpen ? "Hide preview" : "Show preview"}
+          </button>
+
+          {htmlPreviewOpen && (
+            <div className="border border-border rounded-xl overflow-hidden bg-white">
+              <iframe
+                srcDoc={output}
+                className="w-full h-80 border-0"
+                sandbox="allow-scripts"
+                title="HTML output preview"
+              />
+            </div>
+          )}
+
+          <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto font-mono bg-muted/20 rounded-lg p-3 border border-border/50">
+            {output.slice(0, 500)}
+            {output.length > 500 && "…"}
+          </div>
+        </div>
+      ) : format === "markdown" ? (
+        <div className="prose-interstice bg-muted/20 rounded-xl p-4 border border-border/50 max-h-72 overflow-y-auto">
+          <MarkdownRenderer content={output} />
+        </div>
+      ) : (
+        <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto font-mono bg-muted/20 rounded-lg p-3 border border-border/50">
+          {output}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  MarkdownRenderer — styled react-markdown for warm retro theme      */
+/* ------------------------------------------------------------------ */
+
+function MarkdownRenderer({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        h1: ({ children }) => <h1 className="text-sm font-bold text-foreground mb-2 mt-3 first:mt-0">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-[13px] font-semibold text-foreground mb-1.5 mt-2.5">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-xs font-semibold text-foreground mb-1 mt-2">{children}</h3>,
+        p: ({ children }) => <p className="text-xs text-foreground/85 leading-relaxed mb-2">{children}</p>,
+        ul: ({ children }) => <ul className="text-xs text-foreground/85 list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
+        ol: ({ children }) => <ol className="text-xs text-foreground/85 list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        code: ({ className, children, ...props }) => {
+          const isBlock = className?.includes("language-");
+          return isBlock ? (
+            <pre className="bg-card rounded-lg p-3 border border-border/50 overflow-x-auto mb-2">
+              <code className="text-[11px] font-mono text-foreground/90">{children}</code>
+            </pre>
+          ) : (
+            <code className="text-[11px] font-mono bg-primary/10 text-primary px-1 py-0.5 rounded" {...props}>{children}</code>
+          );
+        },
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-primary/30 pl-3 my-2 text-xs text-muted-foreground italic">{children}</blockquote>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+            {children}
+            <ExternalLink className="w-2.5 h-2.5" />
+          </a>
+        ),
+        table: ({ children }) => (
+          <div className="overflow-x-auto mb-2">
+            <table className="w-full text-[11px] border-collapse">{children}</table>
+          </div>
+        ),
+        th: ({ children }) => <th className="text-left font-semibold px-2 py-1 border-b border-border bg-muted/40">{children}</th>,
+        td: ({ children }) => <td className="px-2 py-1 border-b border-border/40">{children}</td>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  SubtasksSection — expandable subtask list with inline outputs      */
+/* ------------------------------------------------------------------ */
+
+function SubtasksSection({
+  childTasks,
+  agentMap,
+}: {
+  childTasks: Array<{
+    _id: string;
+    _creationTime: number;
+    status: string;
+    input: string;
+    output?: string;
+    agentId?: string;
+    startedAt?: number;
+    completedAt?: number;
+  }>;
+  agentMap: Map<string, { _id: string; role: string; name: string }>;
+}) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggle = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  return (
+    <div className="px-5 py-4 border-b border-border/50">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
+        Sub-tasks ({childTasks.length})
+      </p>
+      <div className="space-y-1.5">
+        {childTasks.map((child) => {
+          const childStatus = child.status as TaskStatus;
+          const childMeta = statusMeta[childStatus] ?? statusMeta.pending;
+          const childAgent = child.agentId ? agentMap.get(child.agentId) ?? null : null;
+          const childRole = childAgent?.role ?? "";
+          const childRc = roleColors[childRole];
+          const isExpanded = expandedIds.has(child._id);
+          const hasOutput = !!child.output;
+
+          return (
+            <div key={child._id} className="rounded-lg border border-border/30 overflow-hidden">
+              <div
+                onClick={hasOutput ? () => toggle(child._id) : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 px-3 py-2 bg-muted/30",
+                  hasOutput && "cursor-pointer hover:bg-muted/50 transition-colors"
+                )}
+              >
+                {/* Expand chevron */}
+                {hasOutput ? (
+                  <ChevronRight className={cn(
+                    "w-3 h-3 text-muted-foreground transition-transform duration-150 shrink-0",
+                    isExpanded && "rotate-90"
+                  )} />
+                ) : (
+                  <span className="w-3 shrink-0" />
+                )}
+
+                <StatusDot status={childStatus} size="sm" />
+                <span className="flex-1 min-w-0 truncate text-xs text-foreground">
+                  {cleanInput(child.input).slice(0, 80)}
+                </span>
+                {childAgent && (
+                  <span className={cn(
+                    "shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold",
+                    childRc?.bg ?? "bg-stone-50", childRc?.text ?? "text-stone-600"
+                  )}>
+                    <img src={roleAvatar[childRole] ?? ""} alt={childRole} className="w-3 h-3 rounded-full object-cover" />
+                    {childRole}
+                  </span>
+                )}
+                <Badge
+                  variant={
+                    childStatus === "in_progress" ? "info"
+                      : childStatus === "done" ? "success"
+                        : childStatus === "pending_approval" ? "warning"
+                          : "secondary"
+                  }
+                  className="text-[9px] px-1.5 py-0 h-4 shrink-0"
+                >
+                  {childMeta.label}
+                </Badge>
+              </div>
+
+              {/* Expanded subtask output */}
+              {isExpanded && child.output && (
+                <div className="px-3 pb-3 border-t border-border/20">
+                  <SubtaskOutputRenderer output={child.output} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  SubtaskOutputRenderer — compact rich output for subtask expansion   */
+/* ------------------------------------------------------------------ */
+
+function SubtaskOutputRenderer({ output }: { output: string }) {
+  const format = useMemo(() => detectOutputFormat(output), [output]);
+
+  if (format === "markdown") {
+    return (
+      <div className="pt-2 text-xs text-foreground/80 leading-relaxed max-h-48 overflow-y-auto">
+        <ReactMarkdown
+          components={{
+            h1: ({ children }) => <h1 className="text-xs font-bold mb-1 mt-2 first:mt-0">{children}</h1>,
+            h2: ({ children }) => <h2 className="text-xs font-semibold mb-1 mt-1.5">{children}</h2>,
+            p: ({ children }) => <p className="text-xs leading-relaxed mb-1.5">{children}</p>,
+            ul: ({ children }) => <ul className="list-disc pl-3 mb-1.5 space-y-0.5">{children}</ul>,
+            ol: ({ children }) => <ol className="list-decimal pl-3 mb-1.5 space-y-0.5">{children}</ol>,
+            code: ({ children }) => <code className="text-[10px] font-mono bg-primary/10 text-primary px-0.5 rounded">{children}</code>,
+          }}
+        >
+          {output}
+        </ReactMarkdown>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-2 text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto font-mono">
+      {output}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  DownloadTextButton — download output as a file                     */
+/* ------------------------------------------------------------------ */
+
+function DownloadTextButton({ content, filename, mimeType }: { content: string; filename: string; mimeType: string }) {
+  const handleDownload = () => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors font-medium"
+    >
+      <Download className="w-3 h-3" />
+      Download
+    </button>
   );
 }
 
@@ -734,6 +1175,17 @@ function EmptyState({ hasSearch }: { hasSearch: boolean }) {
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
+
+function formatDuration(ms: number): string {
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  if (mins < 60) return `${mins}m ${remSecs}s`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return `${hrs}h ${remMins}m`;
+}
 
 function cleanInput(raw: string): string {
   return raw

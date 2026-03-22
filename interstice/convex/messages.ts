@@ -40,6 +40,17 @@ export const list = query({
   },
 });
 
+export const getByTask = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("messages")
+      .withIndex("by_task", (q) => q.eq("taskId", args.taskId))
+      .order("asc")
+      .collect();
+  },
+});
+
 export const markRead = mutation({
   args: { id: v.id("messages") },
   handler: async (ctx, args) => {

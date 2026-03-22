@@ -23,6 +23,20 @@ export const list = query({
   },
 });
 
+export const addUserComment = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("activity_log", {
+      action: "user_comment",
+      content: args.content,
+      taskId: args.taskId,
+    });
+  },
+});
+
 export const getByTask = query({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, args) => {
