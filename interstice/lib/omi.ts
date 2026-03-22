@@ -6,19 +6,20 @@
  *
  * Requires in .env.local:
  *   OMI_APP_ID=<your app id from omi developer console>
- *   OMI_APP_SECRET=<your app secret>
+ *   OMI_APP_SECRET=<your app secret> (optional — falls back to OMI_APP_ID)
  *
  * OMI Notification API:
  *   POST https://api.omi.me/v2/integrations/{app_id}/notification?uid={uid}&message={message}
- *   Authorization: Bearer <APP_SECRET>
+ *   Authorization: Bearer <APP_SECRET or APP_ID>
  */
 
 export async function sendOmiNotification(uid: string, message: string): Promise<boolean> {
   const appId = process.env.OMI_APP_ID;
-  const appSecret = process.env.OMI_APP_SECRET;
+  // OMI app secret — falls back to app ID (many OMI integrations use the ID as the auth token)
+  const appSecret = process.env.OMI_APP_SECRET || appId;
 
-  if (!appId || !appSecret) {
-    console.warn("[OMI] OMI_APP_ID or OMI_APP_SECRET not set — skipping notification");
+  if (!appId) {
+    console.warn("[OMI] OMI_APP_ID not set — skipping notification");
     console.log(`[OMI] Would have sent to uid=${uid}: "${message.substring(0, 100)}..."`);
     return false;
   }
