@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
 import { runAgent } from "./claude-runner";
+import { runAgentUnified, type AdapterType } from "./agent-runner";
 import { sendOmiNotification, extractOmiUid } from "./omi";
 import path from "path";
 import fs from "fs";
@@ -27,6 +28,8 @@ interface Agent {
   name: string;
   role: string;
   status: string;
+  adapterType?: "claude" | "codex";
+  model?: string;
 }
 
 interface Task {
@@ -264,7 +267,11 @@ async function runAgentTask(
     // Pre-approve tools per agent so they can run non-interactively
     const allowedTools = getAgentTools(agent.name);
 
-    const result = await runAgent({
+    // Select adapter: use agent's configured adapter or default to claude
+    const adapterType: AdapterType = agent.adapterType || "claude";
+
+    const result = await runAgentUnified({
+      adapter: adapterType,
       prompt,
       systemPromptPath,
       sessionId:
@@ -273,20 +280,14 @@ async function runAgentTask(
       maxTurns,
       allowedTools,
       disableTools: agent.name === "ceo",
-      onEvent: async (event) => {
-        // Stream assistant output to activity log in real-time
-        if (event.type === "assistant" && event.message?.content) {
-          for (const block of event.message.content) {
-            if (block.type === "text" && block.text) {
-              await client.mutation(api.activity.log, {
-                agentId: agent._id,
-                action: "agent_output",
-                content: block.text,
-                taskId: task._id,
-              });
-            }
-          }
-        }
+      model: agent.model || undefined,
+      onOutput: async (text: string) => {
+        await client.mutation(api.activity.log, {
+          agentId: agent._id,
+          action: "agent_output",
+          content: text,
+          taskId: task._id,
+        });
       },
     });
 

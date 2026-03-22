@@ -46,6 +46,21 @@ export const setStatus = mutation({
   },
 });
 
+// Update an agent's LLM adapter and model settings
+export const setAdapter = mutation({
+  args: {
+    id: v.id("agents"),
+    adapterType: v.optional(v.union(v.literal("claude"), v.literal("codex"))),
+    model: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, unknown> = {};
+    if (args.adapterType !== undefined) patch.adapterType = args.adapterType;
+    if (args.model !== undefined) patch.model = args.model;
+    await ctx.db.patch(args.id, patch);
+  },
+});
+
 // Seed all 5 agents — idempotent, safe to call multiple times
 export const seed = mutation({
   handler: async (ctx) => {

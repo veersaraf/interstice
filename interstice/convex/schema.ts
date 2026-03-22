@@ -15,6 +15,8 @@ export default defineSchema({
     reportsTo: v.optional(v.id("agents")),
     description: v.string(),
     currentTask: v.optional(v.string()), // What the agent is currently doing
+    adapterType: v.optional(v.union(v.literal("claude"), v.literal("codex"))), // LLM backend — defaults to "claude"
+    model: v.optional(v.string()), // Model override (e.g. "gpt-5.3-codex", "claude-sonnet-4-6")
   })
     .index("by_status", ["status"])
     .index("by_name", ["name"]),
