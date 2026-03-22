@@ -61,13 +61,17 @@ export async function makeCall(
           messages: [
             {
               role: "system",
-              content: callScript,
+              content: `You are a natural, confident human caller representing Interstice. Speak conversationally — use contractions, brief pauses, and vary your tone like a real person. Never sound like you're reading a script. Be warm and personable.\n\n${callScript}`,
             },
           ],
         },
         voice: {
           provider: "11labs",
-          voiceId: "21m00Tcm4TlvDq8ikWAM",
+          voiceId: "pFZP5JQG7iQjIQuC4Bku", // Lily — natural, warm, conversational female voice
+          stability: 0.4,          // Lower = more expressive variation
+          similarityBoost: 0.75,   // Keep voice identity but allow natural variation
+          style: 0.3,              // Subtle stylistic expression
+          useSpeakerBoost: true,   // Clearer, more present voice
         },
       },
     }),
@@ -98,8 +102,8 @@ function extractOpeningLine(script: string): string {
   const openingMatch = script.match(/###\s*Opening\s*\n([^\n]+)/);
   if (openingMatch) return openingMatch[1].trim();
 
-  // Generic opener
-  return "Hello, this is an AI assistant calling on behalf of Interstice.";
+  // Generic opener — conversational, not robotic
+  return "Hey there! I'm calling from Interstice — got a moment?";
 }
 
 /**
