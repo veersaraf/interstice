@@ -3,23 +3,29 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { ShieldCheck, Check, X } from "lucide-react";
 import { Id } from "../../../convex/_generated/dataModel";
+
+const roleColors: Record<string, string> = {
+  CEO:            "text-yellow-400",
+  Research:       "text-blue-400",
+  Communications: "text-purple-400",
+  Developer:      "text-green-400",
+  Call:           "text-orange-400",
+};
 
 export function ApprovalQueue() {
   const approvals = useQuery(api.approvals.listPending);
-  const agents = useQuery(api.agents.list);
+  const agents    = useQuery(api.agents.list);
   const [resolving, setResolving] = useState<string | null>(null);
 
-  if (!approvals || !agents) return null;
-  if (approvals.length === 0) return null;
+  if (!approvals || !agents || approvals.length === 0) return null;
 
   const agentMap = new Map(agents.map((a) => [a._id, a]));
 
   const resolve = async (approvalId: Id<"approvals">, decision: "approve" | "deny") => {
     setResolving(approvalId);
     try {
-      // Use the HTTP route so post-actions fire:
-      // activity log, findings, CEO synthesis trigger
       await fetch("/api/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -33,50 +39,69 @@ export function ApprovalQueue() {
   };
 
   return (
-    <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-xl p-6">
-      <h2 className="text-sm font-semibold text-yellow-400 uppercase tracking-wider mb-4">
-        Pending Approvals
-      </h2>
+    <div className="space-y-2">
+      {approvals.map((approval) => {
+        const agent = agentMap.get(approval.agentId);
+        const busy  = resolving === approval._id;
 
-      <div className="space-y-3">
-        {approvals.map((approval) => {
-          const agent = agentMap.get(approval.agentId);
-          const busy = resolving === approval._id;
-          return (
+        return (
+          <div
+            key={approval._id}
+            className="rounded-lg p-4 flex items-start gap-4"
+            style={{
+              background: "rgba(234,179,8,0.06)",
+              border: "1px solid rgba(234,179,8,0.25)",
+            }}
+          >
+            {/* Icon */}
             <div
-              key={approval._id}
-              className="bg-gray-900/50 border border-yellow-700/30 rounded-lg p-4"
+              className="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
+              style={{ background: "rgba(234,179,8,0.15)" }}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="text-sm font-semibold text-yellow-300">
-                    {agent?.role || "Agent"} wants to: {approval.action}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1 whitespace-pre-wrap">
-                    {approval.details}
-                  </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => resolve(approval._id, "approve")}
-                    disabled={busy}
-                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-semibold rounded-md transition-colors"
-                  >
-                    {busy ? "..." : "Approve"}
-                  </button>
-                  <button
-                    onClick={() => resolve(approval._id, "deny")}
-                    disabled={busy}
-                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-semibold rounded-md transition-colors"
-                  >
-                    {busy ? "..." : "Deny"}
-                  </button>
-                </div>
-              </div>
+              <ShieldCheck className="w-4 h-4 text-yellow-400" />
             </div>
-          );
-        })}
-      </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                {agent && (
+                  <span className={`text-xs font-bold ${roleColors[agent.role] ?? "text-gray-400"}`}>
+                    {agent.role}
+                  </span>
+                )}
+                <span className="text-xs font-semibold text-yellow-300">
+                  wants to: {approval.action}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap">
+                {approval.details}
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => resolve(approval._id, "approve")}
+                disabled={busy}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-green-300 disabled:opacity-50 transition-opacity"
+                style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)" }}
+              >
+                <Check className="w-3 h-3" />
+                {busy ? "…" : "Approve"}
+              </button>
+              <button
+                onClick={() => resolve(approval._id, "deny")}
+                disabled={busy}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-red-300 disabled:opacity-50 transition-opacity"
+                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}
+              >
+                <X className="w-3 h-3" />
+                {busy ? "…" : "Deny"}
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

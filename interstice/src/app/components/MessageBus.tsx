@@ -2,53 +2,52 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { ArrowRight } from "lucide-react";
+
+const roleColors: Record<string, string> = {
+  CEO:            "text-yellow-400",
+  Research:       "text-blue-400",
+  Communications: "text-purple-400",
+  Developer:      "text-green-400",
+  Call:           "text-orange-400",
+};
 
 export function MessageBus() {
   const messages = useQuery(api.messages.list);
-  const agents = useQuery(api.agents.list);
+  const agents   = useQuery(api.agents.list);
 
-  if (!messages || !agents) return null;
-  if (messages.length === 0) return null;
+  if (!messages || !agents || messages.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-xs text-gray-700">No inter-agent messages yet</p>
+      </div>
+    );
+  }
 
   const agentMap = new Map(agents.map((a) => [a._id, a]));
-
-  // Show only recent delegation/communication messages
-  const recentMessages = messages.slice(0, 10);
+  const recent   = messages.slice(0, 8);
 
   return (
-    <div className="p-4 border-t border-gray-800">
-      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-        Agent Communications
-      </h2>
+    <div className="p-3 space-y-1.5 max-h-48 overflow-y-auto">
+      {recent.map((msg) => {
+        const from = agentMap.get(msg.from);
+        const to   = agentMap.get(msg.to);
 
-      <div className="space-y-1.5">
-        {recentMessages.map((msg) => {
-          const from = agentMap.get(msg.from);
-          const to = agentMap.get(msg.to);
-          return (
-            <div
-              key={msg._id}
-              className="text-[10px] flex items-start gap-1.5 text-gray-400"
-            >
-              <span className="text-yellow-400 shrink-0">→</span>
-              <span>
-                <span className="font-semibold text-gray-300">
-                  {from?.role || "?"}
-                </span>
-                {" → "}
-                <span className="font-semibold text-gray-300">
-                  {to?.role || "?"}
-                </span>
-                {": "}
-                <span className="text-gray-500">
-                  {msg.content.substring(0, 80)}
-                  {msg.content.length > 80 ? "..." : ""}
-                </span>
-              </span>
-            </div>
-          );
-        })}
-      </div>
+        return (
+          <div key={msg._id} className="flex items-start gap-2 text-[11px]">
+            <span className={`font-semibold shrink-0 ${roleColors[from?.role ?? ""] ?? "text-gray-400"}`}>
+              {from?.role ?? "?"}
+            </span>
+            <ArrowRight className="w-3 h-3 text-gray-700 shrink-0 mt-0.5" />
+            <span className={`font-semibold shrink-0 ${roleColors[to?.role ?? ""] ?? "text-gray-400"}`}>
+              {to?.role ?? "?"}
+            </span>
+            <span className="text-gray-600 truncate">
+              {msg.content.substring(0, 70)}{msg.content.length > 70 ? "…" : ""}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

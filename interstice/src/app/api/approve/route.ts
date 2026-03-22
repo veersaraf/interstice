@@ -3,6 +3,8 @@ import { api } from "../../../../convex/_generated/api";
 import { NextRequest, NextResponse } from "next/server";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { extractOmiUid } from "../../../../lib/omi";
+import { makeCall, parsePhoneNumber } from "../../../../skills/make_call";
+import { sendEmail } from "../../../../skills/send_email";
 
 function getClient() {
   return new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -43,17 +45,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // approvals.approve sets task back to in_progress — override to done,
-    // since the approval IS the action (no actual send/call impl yet).
+    // Execute the approved action
+    const actionResult = await executeApprovedAction(approval.action, approval.details);
+
+    // Mark task done with execution result
     await client.mutation(api.tasks.complete, {
       taskId: approval.taskId,
-      output: `[APPROVED] ${approval.action} approved by user.\n\n${approval.details}`,
+      output: `[APPROVED] ${approval.action} approved by user.\n\n${actionResult}\n\n---\n\n${approval.details}`,
     });
 
     await client.mutation(api.activity.log, {
       agentId: approval.agentId,
       action: "approval_resolved",
-      content: `✅ ${approval.action} approved — action executed`,
+      content: `✅ ${approval.action} approved — ${actionResult}`,
       taskId: approval.taskId,
     });
 
@@ -61,14 +65,14 @@ export async function POST(req: NextRequest) {
     await client.mutation(api.findings.post, {
       agentId: approval.agentId,
       taskId: approval.taskId,
-      content: `[APPROVED] ${approval.action}: ${approval.details.substring(0, 400)}`,
+      content: `[APPROVED] ${approval.action}: ${actionResult}\n\n${approval.details.substring(0, 400)}`,
       summary: `Approved: ${approval.action}`,
     });
 
     // If all sibling tasks are now settled, create CEO synthesis task
     await maybeTriggerSynthesis(client, approval.taskId);
 
-    return NextResponse.json({ status: "approved", approval });
+    return NextResponse.json({ status: "approved", approval, actionResult });
   } else {
     const approval = await client.mutation(api.approvals.deny, { id });
     if (!approval) {
@@ -98,6 +102,78 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ status: "denied", approval });
   }
+}
+
+/**
+ * Execute the real action behind an approval.
+ * Returns a human-readable result string.
+ */
+async function executeApprovedAction(
+  action: string,
+  details: string
+): Promise<string> {
+  const actionLower = action.toLowerCase();
+
+  // === MAKE PHONE CALL ===
+  if (actionLower.includes("call") || actionLower.includes("phone")) {
+    const phoneNumber = parsePhoneNumber(details);
+    if (!phoneNumber) {
+      return `Could not parse phone number from details. Logged for manual follow-up.`;
+    }
+
+    try {
+      const result = await makeCall(phoneNumber, details);
+      return result.message;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      return `Call failed: ${errMsg}`;
+    }
+  }
+
+  // === SEND EMAIL ===
+  if (actionLower.includes("email") || actionLower.includes("send")) {
+    const parsed = parseEmailFromDetails(details);
+    if (!parsed) {
+      return `Could not parse email fields from details. Logged for manual follow-up.`;
+    }
+
+    try {
+      const result = await sendEmail(parsed.to, parsed.subject, parsed.body);
+      return result.message;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      return `Email failed: ${errMsg}`;
+    }
+  }
+
+  // Unknown action — just log it
+  return `Action logged: ${action}`;
+}
+
+/**
+ * Parse email fields from approval details.
+ * Details format from comms agent:
+ *   To: recipient@email.com
+ *   Subject: ...
+ *
+ *   [body]
+ */
+function parseEmailFromDetails(
+  details: string
+): { to: string; subject: string; body: string } | null {
+  const toMatch = details.match(/^To:\s*(.+)/m);
+  const subjectMatch = details.match(/^Subject:\s*(.+)/m);
+  if (!toMatch || !subjectMatch) return null;
+
+  // Body is everything after the Subject line (skip blank line)
+  const subjectIdx = details.indexOf(subjectMatch[0]);
+  const afterSubject = details.slice(subjectIdx + subjectMatch[0].length).replace(/^\n\n/, "");
+
+  return {
+    to: toMatch[1].trim(),
+    subject: subjectMatch[1].trim(),
+    body: afterSubject.trim(),
+  };
 }
 
 /**

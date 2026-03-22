@@ -2,130 +2,131 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { cn } from "../../lib/utils";
+import { Clock, Zap, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
-const statusConfig: Record<string, { label: string; color: string; icon: string }> = {
-  pending: { label: "Queued", color: "bg-gray-700 text-gray-300", icon: "⏳" },
-  in_progress: { label: "Running", color: "bg-blue-900/50 text-blue-300 border-blue-700", icon: "⚡" },
-  pending_approval: { label: "Needs Approval", color: "bg-yellow-900/50 text-yellow-300 border-yellow-700", icon: "⚠️" },
-  done: { label: "Done", color: "bg-green-900/50 text-green-300 border-green-700", icon: "✓" },
-  cancelled: { label: "Cancelled", color: "bg-red-900/50 text-red-300 border-red-700", icon: "✗" },
+const statusConfig = {
+  pending:          { label: "Queued",       icon: Clock,          color: "text-gray-400",   bg: "rgba(156,163,175,0.08)", border: "rgba(156,163,175,0.2)" },
+  in_progress:      { label: "Running",      icon: Zap,            color: "text-blue-400",   bg: "rgba(59,130,246,0.08)",  border: "rgba(59,130,246,0.2)"  },
+  pending_approval: { label: "Needs OK",     icon: AlertTriangle,  color: "text-yellow-400", bg: "rgba(234,179,8,0.08)",   border: "rgba(234,179,8,0.2)"   },
+  done:             { label: "Done",         icon: CheckCircle2,   color: "text-green-400",  bg: "rgba(34,197,94,0.08)",   border: "rgba(34,197,94,0.2)"   },
+  cancelled:        { label: "Cancelled",    icon: XCircle,        color: "text-red-400",    bg: "rgba(239,68,68,0.08)",   border: "rgba(239,68,68,0.2)"   },
+} as const;
+
+const roleColors: Record<string, string> = {
+  CEO:            "text-yellow-400",
+  Research:       "text-blue-400",
+  Communications: "text-purple-400",
+  Developer:      "text-green-400",
+  Call:           "text-orange-400",
 };
 
 export function TaskBoard() {
-  const tasks = useQuery(api.tasks.list);
+  const tasks  = useQuery(api.tasks.list);
   const agents = useQuery(api.agents.list);
 
-  if (!tasks || !agents)
-    return <div className="animate-pulse h-64 bg-gray-800/50 m-4 rounded-lg" />;
+  if (!tasks || !agents) {
+    return (
+      <div className="p-4 space-y-2">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-16 rounded-lg animate-pulse" style={{ background: "var(--surface-3)" }} />
+        ))}
+      </div>
+    );
+  }
 
   const agentMap = new Map(agents.map((a) => [a._id, a]));
 
-  // Group tasks by parent (top-level commands and their subtasks)
-  const topLevelTasks = tasks.filter((t) => !t.parentTaskId);
-  const childTaskMap = new Map<string, typeof tasks>();
-  for (const task of tasks) {
-    if (task.parentTaskId) {
-      const existing = childTaskMap.get(task.parentTaskId) || [];
-      existing.push(task);
-      childTaskMap.set(task.parentTaskId, existing);
+  // Build parent/child map
+  const topLevel = tasks.filter((t) => !t.parentTaskId && !t.input.includes("[SYNTHESIS]")).slice(0, 5);
+  const childMap = new Map<string, typeof tasks>();
+  for (const t of tasks) {
+    if (t.parentTaskId) {
+      const arr = childMap.get(t.parentTaskId) ?? [];
+      arr.push(t);
+      childMap.set(t.parentTaskId, arr);
     }
   }
 
-  // Only show recent tasks (last 5 top-level)
-  const recentTopLevel = topLevelTasks.slice(0, 5);
+  if (topLevel.length === 0) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-sm text-gray-600">No tasks yet</p>
+        <p className="text-xs text-gray-700 mt-1">Send a command to get started</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4">
-      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-        Task Board
-      </h2>
+    <div className="p-4 space-y-2 overflow-y-auto max-h-[480px]">
+      {topLevel.map((task) => {
+        const agent    = task.agentId ? agentMap.get(task.agentId) : null;
+        const cfg      = statusConfig[task.status as keyof typeof statusConfig] ?? statusConfig.pending;
+        const children = childMap.get(task._id)?.filter((c) => !c.input.includes("[SYNTHESIS]")) ?? [];
+        const StatusIcon = cfg.icon;
 
-      {recentTopLevel.length === 0 ? (
-        <div className="text-gray-600 text-xs text-center py-8">
-          No tasks yet — send a command above
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {recentTopLevel.map((task) => {
-            const agent = task.agentId ? agentMap.get(task.agentId) : null;
-            const children = childTaskMap.get(task._id) || [];
-            const config = statusConfig[task.status] || statusConfig.pending;
+        const displayInput = task.input
+          .replace(/\[OMI_UID:[^\]]+\]/g, "")
+          .replace(/\[SYNTHESIS\]/g, "")
+          .trim();
 
-            // Clean display input (remove system tags)
-            const displayInput = task.input
-              .replace(/\[OMI_UID:[^\]]+\]/g, "")
-              .replace(/\[SYNTHESIS\]/g, "")
-              .trim();
-
-            const isSynthesis = task.input.includes("[SYNTHESIS]");
-            if (isSynthesis) return null; // Don't show synthesis tasks as top-level
-
-            return (
-              <div
-                key={task._id}
-                className="border border-gray-800 rounded-lg overflow-hidden"
-              >
-                {/* Parent task header */}
-                <div className={`p-3 ${config.color} border-b border-gray-800`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[10px] uppercase tracking-wider opacity-60 mb-0.5">
-                        {agent?.role || "Command"} {config.icon}
-                      </div>
-                      <div className="text-xs font-medium line-clamp-2">
-                        {displayInput}
-                      </div>
-                    </div>
-                    <span className="text-[10px] shrink-0 opacity-60">
-                      {config.label}
-                    </span>
+        return (
+          <div
+            key={task._id}
+            className="rounded-lg overflow-hidden"
+            style={{ border: `1px solid ${cfg.border}`, background: cfg.bg }}
+          >
+            {/* Header */}
+            <div className="px-3 py-2.5">
+              <div className="flex items-start gap-2">
+                <StatusIcon className={cn("w-3.5 h-3.5 shrink-0 mt-0.5", cfg.color)} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-gray-200 line-clamp-2">{displayInput}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {agent && (
+                      <span className={cn("text-[10px] font-semibold", roleColors[agent.role] ?? "text-gray-400")}>
+                        {agent.role}
+                      </span>
+                    )}
+                    <span className={cn("text-[10px]", cfg.color)}>{cfg.label}</span>
                   </div>
                 </div>
-
-                {/* Child tasks (delegated subtasks) */}
-                {children.length > 0 && (
-                  <div className="divide-y divide-gray-800/50">
-                    {children.filter(c => !c.input.includes("[SYNTHESIS]")).map((child) => {
-                      const childAgent = child.agentId
-                        ? agentMap.get(child.agentId)
-                        : null;
-                      const childConfig =
-                        statusConfig[child.status] || statusConfig.pending;
-
-                      return (
-                        <div
-                          key={child._id}
-                          className={`p-2.5 pl-5 ${childConfig.color} flex items-center gap-2`}
-                        >
-                          <span className="text-gray-600 text-[10px]">└</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[10px] font-semibold mr-1.5">
-                              {childAgent?.role || "Agent"}
-                            </span>
-                            <span className="text-[10px] line-clamp-1 opacity-75">
-                              {child.input.substring(0, 80)}
-                            </span>
-                          </div>
-                          <span className="text-[10px] shrink-0">
-                            {childConfig.icon} {childConfig.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Task output preview */}
-                {task.output && !children.length && (
-                  <div className="p-2.5 text-[10px] text-gray-500 bg-gray-900/30 line-clamp-2">
-                    {task.output.substring(0, 150)}...
-                  </div>
-                )}
               </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+
+            {/* Subtasks */}
+            {children.length > 0 && (
+              <div style={{ borderTop: `1px solid ${cfg.border}` }}>
+                {children.map((child) => {
+                  const childAgent = child.agentId ? agentMap.get(child.agentId) : null;
+                  const childCfg   = statusConfig[child.status as keyof typeof statusConfig] ?? statusConfig.pending;
+                  const ChildIcon  = childCfg.icon;
+
+                  return (
+                    <div
+                      key={child._id}
+                      className="flex items-center gap-2 px-3 py-2"
+                      style={{ borderTop: `1px solid rgba(255,255,255,0.04)` }}
+                    >
+                      <span className="text-gray-700 text-[10px] shrink-0">└</span>
+                      <ChildIcon className={cn("w-3 h-3 shrink-0", childCfg.color)} />
+                      {childAgent && (
+                        <span className={cn("text-[10px] font-semibold shrink-0", roleColors[childAgent.role] ?? "text-gray-400")}>
+                          {childAgent.role}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-500 truncate flex-1">
+                        {child.input.substring(0, 60)}{child.input.length > 60 ? "…" : ""}
+                      </span>
+                      <span className={cn("text-[10px] shrink-0", childCfg.color)}>{childCfg.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
