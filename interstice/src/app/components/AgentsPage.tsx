@@ -22,12 +22,10 @@ const claudeModels = [
 ];
 
 const codexModels = [
-  { id: "gpt-5.4", label: "GPT-5.4" },
-  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+  { id: "", label: "Default" },
   { id: "o3", label: "o3" },
   { id: "o4-mini", label: "o4-mini" },
   { id: "gpt-5-mini", label: "GPT-5 Mini" },
-  { id: "codex-mini-latest", label: "Codex Mini" },
 ];
 
 function AdapterSelector({ agentId, currentAdapter, currentModel }: {
@@ -37,12 +35,12 @@ function AdapterSelector({ agentId, currentAdapter, currentModel }: {
 }) {
   const setAdapter = useMutation(api.agents.setAdapter);
   const [expanded, setExpanded] = useState(false);
-  const adapter = currentAdapter || "claude";
+  const adapter = currentAdapter || "codex";
   const models = adapter === "codex" ? codexModels : claudeModels;
 
   const handleAdapterChange = async (newAdapter: "claude" | "codex") => {
-    const defaultModel = newAdapter === "codex" ? "gpt-5.3-codex" : undefined;
-    await setAdapter({ id: agentId, adapterType: newAdapter, model: defaultModel });
+    // Don't set a default model — let each backend use its own default
+    await setAdapter({ id: agentId, adapterType: newAdapter, model: "" });
   };
 
   const handleModelChange = async (model: string) => {

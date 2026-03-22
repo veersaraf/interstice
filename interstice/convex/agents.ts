@@ -56,7 +56,8 @@ export const setAdapter = mutation({
   handler: async (ctx, args) => {
     const patch: Record<string, unknown> = {};
     if (args.adapterType !== undefined) patch.adapterType = args.adapterType;
-    if (args.model !== undefined) patch.model = args.model;
+    // Empty string clears the model so Codex uses its default (ChatGPT accounts don't support explicit models)
+    if (args.model !== undefined) patch.model = args.model || undefined;
     await ctx.db.patch(args.id, patch);
   },
 });
