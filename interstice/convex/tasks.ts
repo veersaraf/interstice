@@ -127,3 +127,35 @@ export const get = query({
     return await ctx.db.get(args.id);
   },
 });
+
+// Reset stale in_progress tasks back to pending (recovery from crashed heartbeat)
+export const resetStale = mutation({
+  args: { maxAgeMs: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const maxAge = args.maxAgeMs ?? 120_000; // 2 minutes default
+    const cutoff = Date.now() - maxAge;
+    const stuck = await ctx.db
+      .query("tasks")
+      .withIndex("by_status", (q) => q.eq("status", "in_progress"))
+      .collect();
+    let reset = 0;
+    for (const task of stuck) {
+      if (task.startedAt && task.startedAt < cutoff) {
+        await ctx.db.patch(task._id, { status: "pending", startedAt: undefined });
+        reset++;
+      }
+    }
+    return { reset };
+  },
+});
+
+// Clear all tasks (for dev/testing cleanup)
+export const clearAll = mutation({
+  handler: async (ctx) => {
+    const all = await ctx.db.query("tasks").collect();
+    for (const task of all) {
+      await ctx.db.delete(task._id);
+    }
+    return { deleted: all.length };
+  },
+});

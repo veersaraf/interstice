@@ -48,6 +48,7 @@ export async function runAgent(opts: {
   skillsDir?: string;
   maxTurns?: number;
   allowedTools?: string[];
+  disableTools?: boolean;
   onEvent?: (event: ClaudeEvent) => void;
 }): Promise<RunResult> {
   const {
@@ -58,6 +59,7 @@ export async function runAgent(opts: {
     skillsDir,
     maxTurns = 3,
     allowedTools,
+    disableTools,
     onEvent,
   } = opts;
 
@@ -71,8 +73,14 @@ export async function runAgent(opts: {
     String(maxTurns),
   ];
 
-  // Pre-approve tools so agents can run without interactive permission prompts
-  if (allowedTools && allowedTools.length > 0) {
+  // Disable all tools for agents that only need text output (e.g., CEO)
+  if (disableTools) {
+    args.push("--disallowedTools",
+      "Bash", "Read", "Write", "Edit", "Glob", "Grep",
+      "WebSearch", "WebFetch", "Agent", "TodoWrite", "NotebookEdit"
+    );
+  } else if (allowedTools && allowedTools.length > 0) {
+    // Pre-approve tools so agents can run without interactive permission prompts
     args.push("--allowedTools", ...allowedTools);
   }
 
@@ -143,7 +151,8 @@ export async function runAgent(opts: {
           // Capture result (final event)
           if (event.type === "result") {
             capturedSessionId = event.session_id || capturedSessionId;
-            if (event.result) {
+            // Use event.result if present, otherwise keep accumulated assistant text
+            if (event.result && event.result.trim()) {
               outputText = event.result;
             }
             const costUsd =
@@ -176,6 +185,12 @@ export async function runAgent(opts: {
       console.log(
         `[claude-runner] Process exited with code ${code}. Output: ${outputText.length} chars`
       );
+      if (outputText.length < 200) {
+        console.log(`[claude-runner] Output text: "${outputText}"`);
+      }
+      if (stderrOutput) {
+        console.log(`[claude-runner] stderr: ${stderrOutput.substring(0, 500)}`);
+      }
 
       if (code !== 0 && isUnknownSessionError(stderrOutput) && sessionId) {
         console.log(
@@ -184,6 +199,12 @@ export async function runAgent(opts: {
         runAgent({ ...opts, sessionId: null, onEvent })
           .then(resolve)
           .catch(reject);
+        return;
+      }
+
+      // Detect API errors returned as output text
+      if (outputText.startsWith("API Error:") || outputText.startsWith("Not logged in")) {
+        reject(new Error(outputText.trim()));
         return;
       }
 

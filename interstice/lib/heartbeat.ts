@@ -7,7 +7,7 @@ import fs from "fs";
 import { Id } from "../convex/_generated/dataModel";
 
 const HEARTBEAT_INTERVAL_MS = 3000;
-const MAX_CONCURRENT_AGENTS = 1; // Run one agent at a time to avoid Windows DLL init failures
+const MAX_CONCURRENT_AGENTS = 3; // Allow parallel agent execution on macOS
 const PROJECT_ROOT = process.cwd();
 const MEMORY_PATH = path.resolve(PROJECT_ROOT, "memory", "company.md");
 
@@ -73,6 +73,9 @@ export function startHeartbeat(convexUrl: string) {
 }
 
 async function tick(client: ConvexHttpClient) {
+  // Recover stale in_progress tasks from crashed runs (older than 2 min)
+  await client.mutation(api.tasks.resetStale, { maxAgeMs: 120_000 });
+
   // Get all pending tasks
   const pendingTasks: Task[] = await client.query(api.tasks.getAllPending, {});
   if (pendingTasks.length === 0) return;
@@ -200,8 +203,8 @@ async function runAgentTask(
       `${agent.name}.md`
     );
 
-    // CEO: 1 turn (JSON delegation only). Specialists: 5 turns (may use tools).
-    const maxTurns = agent.name === "ceo" ? 1 : 5;
+    // CEO: 2 turns (JSON delegation). Specialists: 5 turns (may use tools).
+    const maxTurns = agent.name === "ceo" ? 2 : 5;
 
     // Pre-approve tools per agent so they can run non-interactively
     const allowedTools = getAgentTools(agent.name);
@@ -214,6 +217,7 @@ async function runAgentTask(
       cwd: PROJECT_ROOT,
       maxTurns,
       allowedTools,
+      disableTools: agent.name === "ceo",
       onEvent: async (event) => {
         // Stream assistant output to activity log in real-time
         if (event.type === "assistant" && event.message?.content) {
@@ -331,6 +335,9 @@ async function runAgentTask(
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`[heartbeat] ${agent.name} error:`, errorMsg);
+
+    // Cancel the task so it doesn't block the queue
+    await client.mutation(api.tasks.cancel, { taskId: task._id });
 
     await client.mutation(api.activity.log, {
       agentId: agent._id,
