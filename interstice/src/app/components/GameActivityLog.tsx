@@ -7,18 +7,20 @@ import { ScrollArea } from "../../components/ui/scroll-area";
 import {
   Copy,
   Check,
+  MessageCircle,
   FileText,
-  BarChart3,
+  Bot,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 
-/* ─── Agent emoji + color config ───────────────────────────────── */
-const agentConfig: Record<string, { emoji: string; color: string; bg: string }> = {
-  CEO:            { emoji: "🧑‍💼", color: "text-amber-700",   bg: "bg-amber-50" },
-  Research:       { emoji: "🔬", color: "text-blue-700",    bg: "bg-blue-50" },
-  Communications: { emoji: "✉️", color: "text-purple-700",  bg: "bg-purple-50" },
-  Developer:      { emoji: "⌨️", color: "text-emerald-700", bg: "bg-emerald-50" },
-  Call:           { emoji: "📱", color: "text-orange-700",  bg: "bg-orange-50" },
+/* ─── Agent avatar + color config ─────────────────────────────── */
+const agentConfig: Record<string, { avatar: string; color: string; bg: string }> = {
+  CEO:            { avatar: "/avatars/ceo.png",            color: "text-amber-700",   bg: "bg-amber-50" },
+  Research:       { avatar: "/avatars/research.png",       color: "text-blue-700",    bg: "bg-blue-50" },
+  Communications: { avatar: "/avatars/communications.png", color: "text-purple-700",  bg: "bg-purple-50" },
+  Developer:      { avatar: "/avatars/developer.png",      color: "text-emerald-700", bg: "bg-emerald-50" },
+  Call:           { avatar: "/avatars/call.png",           color: "text-orange-700",  bg: "bg-orange-50" },
 };
 
 /* ─── Friendly action labels (no jargon) ───────────────────────── */
@@ -90,11 +92,15 @@ function ChatBubble({
     <div className="flex gap-2 mb-2 px-3">
       {/* Agent avatar */}
       <div className={cn(
-        "w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 mt-0.5 border",
+        "w-7 h-7 rounded-full shrink-0 mt-0.5 border overflow-hidden",
         cfg?.bg ?? "bg-stone-50",
         "border-stone-200/80"
       )}>
-        {cfg?.emoji ?? "🤖"}
+        {cfg?.avatar ? (
+          <img src={cfg.avatar} alt={agent?.role ?? "Agent"} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center"><Bot className="w-4 h-4 text-muted-foreground" /></div>
+        )}
       </div>
 
       <div className="flex-1 min-w-0 max-w-[85%]">
@@ -111,7 +117,7 @@ function ChatBubble({
         {/* Message bubble */}
         <div
           className={cn(
-            "px-3 py-2 rounded-2xl rounded-tl-md text-xs leading-relaxed shadow-sm border",
+            "px-3.5 py-2.5 rounded-2xl rounded-tl-md text-xs leading-relaxed shadow-sm border",
             isError
               ? "bg-red-50 border-red-200 text-red-700"
               : isApproval
@@ -123,20 +129,20 @@ function ChatBubble({
                     : isSynthesis
                       ? "bg-purple-50 border-purple-200 text-purple-800"
                       : isOutput
-                        ? "bg-stone-50 border-stone-200 text-stone-600"
+                        ? "bg-stone-50 border-stone-200 text-stone-700"
                         : "bg-white border-stone-200 text-foreground",
             isLong && "cursor-pointer",
           )}
           onClick={() => isLong && onToggle()}
         >
-          <span className="whitespace-pre-wrap break-words">{displayContent}</span>
+          <ChatMarkdown content={displayContent} />
           {isLong && !isExpanded && (
-            <button className="block text-[10px] text-primary font-medium mt-1">
+            <button className="block text-[10px] text-primary font-medium mt-1.5">
               Show more
             </button>
           )}
           {isLong && isExpanded && (
-            <button className="block text-[10px] text-primary font-medium mt-1">
+            <button className="block text-[10px] text-primary font-medium mt-1.5">
               Show less
             </button>
           )}
@@ -146,52 +152,127 @@ function ChatBubble({
   );
 }
 
+/* ─── ChatMarkdown — clean, compact markdown for chat bubbles ──── */
+function ChatMarkdown({ content }: { content: string }) {
+  // Quick check: if no markdown signals, just render as plain text
+  const hasMarkdown = /[#*_`\[\]|>]/.test(content);
+  if (!hasMarkdown) {
+    return <span className="whitespace-pre-wrap break-words">{content}</span>;
+  }
+
+  return (
+    <div className="chat-markdown break-words">
+      <ReactMarkdown
+        components={{
+          h1: ({ children }) => <p className="font-bold text-[13px] mb-1.5 mt-1 first:mt-0">{children}</p>,
+          h2: ({ children }) => <p className="font-semibold text-xs mb-1 mt-1">{children}</p>,
+          h3: ({ children }) => <p className="font-semibold text-xs mb-0.5 mt-1">{children}</p>,
+          p: ({ children }) => <p className="mb-1.5 last:mb-0 leading-relaxed">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc pl-3.5 mb-1.5 space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-3.5 mb-1.5 space-y-0.5">{children}</ol>,
+          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          code: ({ className, children }) => {
+            const isBlock = className?.includes("language-");
+            return isBlock ? (
+              <pre className="bg-white/60 rounded-lg p-2 my-1.5 overflow-x-auto border border-stone-200/50">
+                <code className="text-[10px] font-mono">{children}</code>
+              </pre>
+            ) : (
+              <code className="text-[10.5px] font-mono bg-white/60 px-1 py-0.5 rounded border border-stone-200/30">{children}</code>
+            );
+          },
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+              {children}
+            </a>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-stone-300 pl-2.5 my-1.5 italic opacity-80">{children}</blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-1.5 rounded-lg border border-stone-200/50">
+              <table className="w-full text-[10px]">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => <th className="text-left font-semibold px-2 py-1 bg-stone-100/50 border-b border-stone-200/50">{children}</th>,
+          td: ({ children }) => <td className="px-2 py-1 border-b border-stone-100">{children}</td>,
+          hr: () => <hr className="my-2 border-stone-200/40" />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+/* ─── Noise filter — hide low-value internal chatter ─────────── */
+const NOISY_ACTIONS = new Set([
+  "delegation_complete",   // duplicate of "delegated"
+  "task_started",          // obvious from context
+]);
+
+function isNoisyContent(content: string): boolean {
+  // Filter out very short internal-sounding messages
+  if (content.length < 10 && /^(ok|done|starting|working)/i.test(content)) return true;
+  return false;
+}
+
 /* ─── Main Activity Log ────────────────────────────────────────── */
 export function GameActivityLog() {
   const activities = useQuery(api.activity.list, { limit: 50 });
   const agents = useQuery(api.agents.list);
   const findings = useQuery(api.findings.getRecent, { limit: 5 });
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"activity" | "output">("activity");
 
   // Auto-scroll to bottom (chat-style: latest at bottom)
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [activities?.length]);
 
-  if (!activities || !agents) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-muted-foreground text-sm animate-pulse">Loading…</div>
-      </div>
-    );
-  }
+  const agentMap = useMemo(
+    () => new Map((agents ?? []).map((a) => [a._id, a])),
+    [agents],
+  );
 
-  const agentMap = new Map(agents.map((a) => [a._id, a]));
+  // Filter noise and reverse for chat order (latest at bottom)
+  const chatOrderActivities = useMemo(() => {
+    if (!activities) return [];
+    return [...activities]
+      .filter((a) => !NOISY_ACTIONS.has(a.action) && !isNoisyContent(a.content))
+      .reverse();
+  }, [activities]);
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = useCallback((id: string) => {
     setExpandedItems((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const copyContent = async (content: string, id: string) => {
+  const copyContent = useCallback(async (content: string, id: string) => {
     try {
       await navigator.clipboard.writeText(content);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch { /* no-op */ }
-  };
+  }, []);
 
-  // Reverse activities so latest is at the bottom (chat order)
-  const chatOrderActivities = [...activities].reverse();
+  if (!activities || !agents) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-muted-foreground text-sm animate-pulse">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-card rounded-2xl border border-stone-200/80 overflow-hidden shadow-sm">
@@ -206,7 +287,7 @@ export function GameActivityLog() {
               : "text-muted-foreground hover:text-foreground hover:bg-stone-100"
           )}
         >
-          💬 Chat
+          <MessageCircle className="w-3.5 h-3.5" /> Chat
         </button>
         <button
           onClick={() => setTab("output")}
@@ -217,7 +298,7 @@ export function GameActivityLog() {
               : "text-muted-foreground hover:text-foreground hover:bg-stone-100"
           )}
         >
-          📄 Output
+          <FileText className="w-3.5 h-3.5" /> Output
           {findings && findings.length > 0 && (
             <span className="text-[9px] bg-cyan-100 text-cyan-700 px-1.5 rounded-full font-bold">
               {findings.length}
@@ -230,10 +311,10 @@ export function GameActivityLog() {
       <ScrollArea className="flex-1">
         {tab === "activity" ? (
           /* ─── Chat-style Activity Stream ─── */
-          <div ref={scrollRef} className="py-3">
+          <div className="py-3">
             {chatOrderActivities.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-center px-4">
-                <span className="text-3xl mb-3">💬</span>
+                <MessageCircle className="w-8 h-8 text-muted-foreground/40 mb-3" />
                 <p className="text-xs text-muted-foreground font-medium">No activity yet</p>
                 <p className="text-[10px] text-muted-foreground/50 mt-1">
                   Tell your team what to do and watch them work
@@ -253,13 +334,14 @@ export function GameActivityLog() {
                 );
               })
             )}
+            <div ref={bottomRef} />
           </div>
         ) : (
           /* ─── Output / Findings ─── */
           <div>
             {!findings || findings.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-center px-4">
-                <span className="text-3xl mb-3">📄</span>
+                <FileText className="w-8 h-8 text-muted-foreground/40 mb-3" />
                 <p className="text-xs text-muted-foreground font-medium">No results yet</p>
                 <p className="text-[10px] text-muted-foreground/50 mt-1">
                   Agent reports and deliverables appear here
@@ -280,11 +362,15 @@ export function GameActivityLog() {
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <div className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center text-xs border",
+                            "w-6 h-6 rounded-full overflow-hidden border",
                             cfg?.bg ?? "bg-stone-50",
                             "border-stone-200/80"
                           )}>
-                            {cfg?.emoji ?? "🤖"}
+                            {cfg?.avatar ? (
+                              <img src={cfg.avatar} alt={agent?.role ?? "Agent"} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center"><Bot className="w-3.5 h-3.5 text-muted-foreground" /></div>
+                            )}
                           </div>
                           <span className={cn("text-xs font-bold", cfg?.color ?? "text-stone-600")}>
                             {agent?.role ?? "Agent"}
@@ -304,14 +390,14 @@ export function GameActivityLog() {
                         </div>
                       </div>
 
-                      {/* Content */}
+                      {/* Content — rendered as markdown */}
                       <div className={cn(
-                        "text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed rounded-xl p-3 bg-stone-50 border border-stone-100",
+                        "text-xs text-foreground/80 leading-relaxed rounded-xl p-3 bg-stone-50 border border-stone-100",
                         !isExpanded && isLong && "max-h-28 overflow-hidden relative cursor-pointer"
                       )}
                         onClick={() => isLong && !isExpanded && toggleExpand(finding._id)}
                       >
-                        {isExpanded ? finding.content : (isLong ? finding.content.substring(0, 300) : finding.content)}
+                        <ChatMarkdown content={isExpanded ? finding.content : (isLong ? finding.content.substring(0, 300) : finding.content)} />
                         {!isExpanded && isLong && (
                           <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-stone-50 to-transparent rounded-b-xl" />
                         )}
