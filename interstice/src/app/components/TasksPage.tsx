@@ -16,13 +16,9 @@ import {
   Download,
   Eye,
   ExternalLink,
-  MessageSquare,
-  ListTodo,
   Send,
   User,
-  Play,
   CheckCircle2,
-  AlertCircle,
 } from "lucide-react";
 import { useState, useMemo, useCallback, useRef } from "react";
 import { Badge } from "../../components/ui/badge";
@@ -535,8 +531,6 @@ interface TaskDetailPanelProps {
   onClose: () => void;
 }
 
-type DetailTab = "overview" | "output" | "activity" | "subtasks";
-
 function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }: TaskDetailPanelProps) {
   const activity = useQuery(api.activity.getByTask, { taskId });
   const addComment = useMutation(api.activity.addUserComment);
@@ -546,9 +540,6 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
   const role = agent?.role ?? "";
   const rc = roleColors[role];
 
-  // Default to output tab for completed tasks, overview otherwise
-  const defaultTab: DetailTab = (status === "done" && task.output) ? "output" : "overview";
-  const [activeTab, setActiveTab] = useState<DetailTab>(defaultTab);
   const [commentText, setCommentText] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
@@ -565,40 +556,6 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
     setCommentText("");
     await addComment({ taskId, content: text });
   };
-
-  // Compute timeline events from activity
-  const timelineEvents = useMemo(() => {
-    const events: Array<{ time: number; icon: string; label: string; detail?: string }> = [];
-    events.push({ time: task._creationTime, icon: "create", label: "Task created" });
-    if (task.startedAt) events.push({ time: task.startedAt, icon: "start", label: "Execution started", detail: agent ? `Assigned to ${role}` : undefined });
-    // Extract delegation events from activity
-    if (activity) {
-      for (const entry of activity) {
-        if (entry.action === "delegated" || entry.action === "delegation_complete") {
-          events.push({ time: entry._creationTime, icon: "delegate", label: "Delegated", detail: entry.content.slice(0, 80) });
-        }
-        if (entry.action === "findings_posted") {
-          events.push({ time: entry._creationTime, icon: "findings", label: "Findings shared", detail: entry.content.slice(0, 80) });
-        }
-        if (entry.action === "approval_requested") {
-          events.push({ time: entry._creationTime, icon: "approval", label: "Approval requested" });
-        }
-      }
-    }
-    if (task.completedAt) events.push({ time: task.completedAt, icon: "done", label: status === "cancelled" ? "Cancelled" : "Completed" });
-    events.sort((a, b) => a.time - b.time);
-    return events;
-  }, [task, activity, agent, role, status]);
-
-  const doneCount = childTasks.filter((c) => c.status === "done").length;
-  const activityCount = activity?.length ?? 0;
-
-  const tabs: Array<{ id: DetailTab; label: string; icon: React.ReactNode; count?: number }> = [
-    { id: "overview", label: "Overview", icon: <Eye className="w-3.5 h-3.5" /> },
-    ...(task.output ? [{ id: "output" as DetailTab, label: "Output", icon: <FileText className="w-3.5 h-3.5" /> }] : []),
-    { id: "activity", label: "Activity", icon: <MessageSquare className="w-3.5 h-3.5" />, count: activityCount },
-    ...(childTasks.length > 0 ? [{ id: "subtasks" as DetailTab, label: "Sub-tasks", icon: <ListTodo className="w-3.5 h-3.5" />, count: childTasks.length }] : []),
-  ];
 
   return (
     <div className="flex-1 min-w-[400px] border-l border-border bg-card flex flex-col overflow-hidden ml-0">
@@ -662,135 +619,123 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
         </div>
 
         {/* Task description */}
-        <p className="text-sm font-medium text-foreground leading-relaxed mb-3">
+        <p className="text-sm font-medium text-foreground leading-relaxed mb-2">
           {cleanInput(task.input)}
         </p>
 
-        {/* Meta row */}
-        <div className="flex items-center gap-3 flex-wrap">
+        {/* Meta row — agent + timestamps inline */}
+        <div className="flex items-center gap-2.5 flex-wrap text-[10px] text-muted-foreground">
           {agent && (
             <span
               className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold",
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold",
                 rc?.bg ?? "bg-stone-50",
                 rc?.text ?? "text-stone-600"
               )}
             >
-              <img src={roleAvatar[role] ?? ""} alt={role} className="w-4 h-4 rounded-full object-cover" />
+              <img src={roleAvatar[role] ?? ""} alt={role} className="w-3.5 h-3.5 rounded-full object-cover" />
               {role}
             </span>
           )}
-          {childTasks.length > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-              <ListTodo className="w-3 h-3" />
-              {doneCount}/{childTasks.length} sub-tasks done
+          <span className="inline-flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {timeAgo(task._creationTime)}
+          </span>
+          {task.startedAt && task.completedAt && (
+            <span className="inline-flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              {formatDuration(task.completedAt - task.startedAt)}
+            </span>
+          )}
+          {task.startedAt && !task.completedAt && (
+            <span className="inline-flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              Running {formatDuration(Date.now() - task.startedAt)}
             </span>
           )}
         </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex border-b border-border shrink-0 px-5 gap-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px",
-              activeTab === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-            )}
-          >
-            {tab.icon}
-            {tab.label}
-            {tab.count !== undefined && tab.count > 0 && (
-              <span className="text-[9px] tabular-nums opacity-60 ml-0.5">{tab.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab content */}
+      {/* Main scrollable content — activity feed + output at end */}
       <div className="flex-1 overflow-y-auto">
-        {/* Overview tab — timeline + summary */}
-        {activeTab === "overview" && (
-          <div className="px-5 py-4 space-y-5">
-            {/* Work history timeline */}
-            <div>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                Timeline
-              </p>
-              <div className="relative pl-5">
-                {/* Vertical line */}
-                <div className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
-                <div className="space-y-3">
-                  {timelineEvents.map((evt, i) => (
-                    <div key={i} className="relative flex items-start gap-3">
-                      {/* Dot */}
-                      <span className={cn(
-                        "absolute -left-5 top-0.5 w-3.5 h-3.5 rounded-full border-2 bg-card flex items-center justify-center",
-                        evt.icon === "done" ? "border-green-500" :
-                        evt.icon === "start" ? "border-blue-500" :
-                        evt.icon === "delegate" ? "border-amber-500" :
-                        evt.icon === "findings" ? "border-purple-500" :
-                        evt.icon === "approval" ? "border-amber-500" :
-                        "border-stone-400"
-                      )}>
-                        {evt.icon === "done" && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
-                        {evt.icon === "start" && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-foreground">{evt.label}</p>
-                        {evt.detail && <p className="text-[10px] text-muted-foreground truncate">{evt.detail}</p>}
-                        <p className="text-[9px] text-muted-foreground/50 tabular-nums">{timeAgo(evt.time)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+        <div className="px-5 py-4">
+          {/* Activity feed */}
+          {!activity ? (
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-10 rounded-lg animate-pulse bg-secondary/40" />
+              ))}
             </div>
+          ) : activity.length === 0 && !task.output ? (
+            <p className="text-xs text-muted-foreground/60 italic py-8 text-center">
+              No activity yet
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {(activity ?? []).map((entry) => {
+                const entryAgent = entry.agentId ? agentMap.get(entry.agentId) ?? null : null;
+                const entryRole = entryAgent?.role ?? "";
+                const entryRc = roleColors[entryRole];
+                const isUserComment = entry.action === "user_comment";
+                const al = isUserComment
+                  ? { label: "YOU", color: "bg-primary/10 text-primary" }
+                  : (actionLabels[entry.action] ?? { label: entry.action.toUpperCase(), color: "bg-stone-100 text-stone-600" });
+                const isOutput = entry.action === "agent_output";
 
-            {/* Duration */}
-            {task.startedAt && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/30 border border-border/30">
-                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
-                  Duration: {task.completedAt
-                    ? formatDuration(task.completedAt - task.startedAt)
-                    : `Running for ${formatDuration(Date.now() - task.startedAt)}`
-                  }
-                </span>
-              </div>
-            )}
-
-            {/* Quick output preview if available */}
-            {task.output && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Output preview
-                  </p>
-                  <button
-                    onClick={() => setActiveTab("output")}
-                    className="text-[10px] text-primary hover:text-primary/80 font-medium"
+                return (
+                  <div
+                    key={entry._id}
+                    className={cn(
+                      "rounded-lg border px-3 py-2",
+                      isUserComment
+                        ? "bg-primary/5 border-primary/20"
+                        : isOutput ? "bg-muted/10 border-border/30" : "bg-muted/30 border-border/30"
+                    )}
                   >
-                    View full output
-                  </button>
-                </div>
-                <div className="text-xs text-foreground/70 leading-relaxed bg-muted/20 rounded-xl p-3 border border-border/30 max-h-32 overflow-hidden relative">
-                  {task.output.slice(0, 300)}
-                  {task.output.length > 300 && (
-                    <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-card to-transparent" />
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+                    <div className="flex items-center gap-2 mb-1">
+                      {isUserComment ? (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-primary">
+                          <User className="w-3 h-3" />
+                          You
+                        </span>
+                      ) : entryAgent ? (
+                        <span className={cn(
+                          "inline-flex items-center gap-1 text-[9px] font-semibold",
+                          entryRc?.text ?? "text-stone-600"
+                        )}>
+                          <img src={roleAvatar[entryRole] ?? ""} alt={entryRole} className="w-3.5 h-3.5 rounded-full object-cover" />
+                          {entryRole}
+                        </span>
+                      ) : null}
+                      <span className={cn(
+                        "text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider",
+                        al.color
+                      )}>
+                        {al.label}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground/50 ml-auto tabular-nums">
+                        {timeAgo(entry._creationTime)}
+                      </span>
+                    </div>
+                    <p className={cn(
+                      "text-xs leading-relaxed",
+                      isOutput
+                        ? "text-foreground/70 font-mono whitespace-pre-wrap max-h-32 overflow-y-auto"
+                        : "text-foreground/80"
+                    )}>
+                      {entry.content.length > 500
+                        ? entry.content.slice(0, 500) + "…"
+                        : entry.content}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
-        {/* Output tab — rich rendering */}
-        {activeTab === "output" && task.output && (
+        {/* Output section at the end */}
+        {task.output && (
           <TaskOutputSection
             output={task.output}
             taskTitle={task.input}
@@ -798,118 +743,33 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
             completedAt={task.completedAt}
           />
         )}
+      </div>
 
-        {/* Activity tab — comments + activity feed */}
-        {activeTab === "activity" && (
-          <div className="flex flex-col h-full">
-            <div className="flex-1 px-5 py-4 overflow-y-auto">
-              {!activity ? (
-                <div className="space-y-2">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="h-10 rounded-lg animate-pulse bg-secondary/40" />
-                  ))}
-                </div>
-              ) : activity.length === 0 ? (
-                <p className="text-xs text-muted-foreground/60 italic py-8 text-center">
-                  No activity yet
-                </p>
-              ) : (
-                <div className="space-y-1.5">
-                  {activity.map((entry) => {
-                    const entryAgent = entry.agentId ? agentMap.get(entry.agentId) ?? null : null;
-                    const entryRole = entryAgent?.role ?? "";
-                    const entryRc = roleColors[entryRole];
-                    const isUserComment = entry.action === "user_comment";
-                    const al = isUserComment
-                      ? { label: "YOU", color: "bg-primary/10 text-primary" }
-                      : (actionLabels[entry.action] ?? { label: entry.action.toUpperCase(), color: "bg-stone-100 text-stone-600" });
-                    const isOutput = entry.action === "agent_output";
-
-                    return (
-                      <div
-                        key={entry._id}
-                        className={cn(
-                          "rounded-lg border px-3 py-2",
-                          isUserComment
-                            ? "bg-primary/5 border-primary/20"
-                            : isOutput ? "bg-muted/10 border-border/30" : "bg-muted/30 border-border/30"
-                        )}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          {isUserComment ? (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-primary">
-                              <User className="w-3 h-3" />
-                              You
-                            </span>
-                          ) : entryAgent ? (
-                            <span className={cn(
-                              "inline-flex items-center gap-1 text-[9px] font-semibold",
-                              entryRc?.text ?? "text-stone-600"
-                            )}>
-                              <img src={roleAvatar[entryRole] ?? ""} alt={entryRole} className="w-3.5 h-3.5 rounded-full object-cover" />
-                              {entryRole}
-                            </span>
-                          ) : null}
-                          <span className={cn(
-                            "text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider",
-                            al.color
-                          )}>
-                            {al.label}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground/50 ml-auto tabular-nums">
-                            {timeAgo(entry._creationTime)}
-                          </span>
-                        </div>
-                        <p className={cn(
-                          "text-xs leading-relaxed",
-                          isOutput
-                            ? "text-foreground/70 font-mono whitespace-pre-wrap max-h-32 overflow-y-auto"
-                            : "text-foreground/80"
-                        )}>
-                          {entry.content.length > 500
-                            ? entry.content.slice(0, 500) + "…"
-                            : entry.content}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Comment input */}
-            <div className="px-5 py-3 border-t border-border shrink-0 bg-card">
-              <div className="flex items-center gap-2">
-                <input
-                  ref={commentInputRef}
-                  type="text"
-                  placeholder="Add a comment..."
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleSendComment(); }}
-                  className="flex-1 h-8 px-3 rounded-lg border border-border bg-transparent text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <button
-                  onClick={handleSendComment}
-                  disabled={!commentText.trim()}
-                  className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                    commentText.trim()
-                      ? "bg-primary text-white hover:bg-primary/90"
-                      : "bg-secondary text-muted-foreground cursor-not-allowed"
-                  )}
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Sub-tasks tab */}
-        {activeTab === "subtasks" && childTasks.length > 0 && (
-          <SubtasksSection childTasks={childTasks} agentMap={agentMap} />
-        )}
+      {/* Comment input — always pinned at bottom */}
+      <div className="px-5 py-3 border-t border-border shrink-0 bg-card">
+        <div className="flex items-center gap-2">
+          <input
+            ref={commentInputRef}
+            type="text"
+            placeholder="Add a comment..."
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSendComment(); }}
+            className="flex-1 h-8 px-3 rounded-lg border border-border bg-transparent text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <button
+            onClick={handleSendComment}
+            disabled={!commentText.trim()}
+            className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+              commentText.trim()
+                ? "bg-primary text-white hover:bg-primary/90"
+                : "bg-secondary text-muted-foreground cursor-not-allowed"
+            )}
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
