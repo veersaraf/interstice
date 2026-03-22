@@ -1,28 +1,25 @@
 /**
- * Make Call Skill — ElevenLabs Conversational AI + Twilio outbound call
+ * Make Call Skill — Vapi outbound call
  *
  * Usage from CLI: npx tsx skills/make_call.ts "+1234567890" "Your call script here"
  *
  * The Call Agent invokes this after approval to place a real outbound phone call.
- * ElevenLabs handles the voice conversation using the provided script as context.
+ * Vapi handles the voice conversation using the provided script as context.
  *
  * Required env vars in .env.local:
- *   ELEVENLABS_API_KEY          — ElevenLabs API key
- *   ELEVENLABS_AGENT_ID         — Conversational AI agent ID (from ElevenLabs dashboard)
- *   ELEVENLABS_PHONE_NUMBER_ID  — Phone number ID registered in ElevenLabs (linked to Twilio)
+ *   VAPI_API_KEY           — Vapi API key
+ *   VAPI_PHONE_NUMBER_ID   — Phone number ID from Vapi dashboard
  */
 
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
-const ELEVENLABS_PHONE_NUMBER_ID = process.env.ELEVENLABS_PHONE_NUMBER_ID;
+const VAPI_API_KEY = process.env.VAPI_API_KEY;
+const VAPI_PHONE_NUMBER_ID = process.env.VAPI_PHONE_NUMBER_ID;
 
 interface CallResult {
   success: boolean;
-  callSid?: string;
-  conversationId?: string;
+  callId?: string;
   message: string;
 }
 
@@ -30,14 +27,11 @@ export async function makeCall(
   toNumber: string,
   callScript: string
 ): Promise<CallResult> {
-  if (!ELEVENLABS_API_KEY) {
-    return { success: false, message: "ERROR: ELEVENLABS_API_KEY not set in .env.local" };
+  if (!VAPI_API_KEY) {
+    return { success: false, message: "ERROR: VAPI_API_KEY not set in .env.local" };
   }
-  if (!ELEVENLABS_AGENT_ID) {
-    return { success: false, message: "ERROR: ELEVENLABS_AGENT_ID not set in .env.local" };
-  }
-  if (!ELEVENLABS_PHONE_NUMBER_ID) {
-    return { success: false, message: "ERROR: ELEVENLABS_PHONE_NUMBER_ID not set in .env.local" };
+  if (!VAPI_PHONE_NUMBER_ID) {
+    return { success: false, message: "ERROR: VAPI_PHONE_NUMBER_ID not set in .env.local" };
   }
 
   // Normalize phone number — must be E.164 format
@@ -46,39 +40,44 @@ export async function makeCall(
     return { success: false, message: `ERROR: Phone number must be in E.164 format (e.g., +14155551234). Got: ${toNumber}` };
   }
 
-  console.log(`[make_call] Initiating outbound call to ${normalized}...`);
+  console.log(`[make_call] Initiating Vapi outbound call to ${normalized}...`);
 
-  const response = await fetch(
-    "https://api.elevenlabs.io/v1/convai/twilio/outbound_call",
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
+  const response = await fetch("https://api.vapi.ai/call", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${VAPI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      phoneNumberId: VAPI_PHONE_NUMBER_ID,
+      customer: {
+        number: normalized,
       },
-      body: JSON.stringify({
-        agent_id: ELEVENLABS_AGENT_ID,
-        agent_phone_number_id: ELEVENLABS_PHONE_NUMBER_ID,
-        to_number: normalized,
-        conversation_initiation_client_data: {
-          conversation_config_override: {
-            agent: {
-              prompt: {
-                prompt: callScript,
-              },
-              first_message: extractOpeningLine(callScript),
+      assistant: {
+        firstMessage: extractOpeningLine(callScript),
+        model: {
+          provider: "anthropic",
+          model: "claude-sonnet-4-20250514",
+          messages: [
+            {
+              role: "system",
+              content: callScript,
             },
-          },
+          ],
         },
-      }),
-    }
-  );
+        voice: {
+          provider: "11labs",
+          voiceId: "21m00Tcm4TlvDq8ikWAM",
+        },
+      },
+    }),
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
     return {
       success: false,
-      message: `ERROR: ElevenLabs API returned ${response.status}: ${errorText}`,
+      message: `ERROR: Vapi API returned ${response.status}: ${errorText}`,
     };
   }
 
@@ -86,14 +85,13 @@ export async function makeCall(
 
   return {
     success: true,
-    callSid: data.call_sid,
-    conversationId: data.conversation_id,
-    message: `Call initiated to ${normalized}. Call SID: ${data.call_sid || "pending"}. Conversation ID: ${data.conversation_id || "pending"}.`,
+    callId: data.id,
+    message: `Call initiated to ${normalized}. Call ID: ${data.id || "pending"}. Status: ${data.status || "queued"}.`,
   };
 }
 
 /**
- * Extract the opening line from a call script for ElevenLabs first_message.
+ * Extract the opening line from a call script for the first_message.
  * Looks for text under "### Opening" or falls back to a generic greeting.
  */
 function extractOpeningLine(script: string): string {
