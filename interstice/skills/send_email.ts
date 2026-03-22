@@ -57,9 +57,11 @@ export async function sendEmail(
   }
 
   // Dynamic import so the skill works even without nodemailer installed
-  let nodemailer: typeof import("nodemailer");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let nodemailer: any;
   try {
-    nodemailer = await import("nodemailer");
+    const mod = "nodemailer";
+    nodemailer = await import(/* webpackIgnore: true */ mod);
   } catch {
     return {
       success: false,

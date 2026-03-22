@@ -62,6 +62,7 @@ export function startHeartbeat(convexUrl: string) {
   console.log("[heartbeat] Starting scheduler...");
 
   // Run recovery BEFORE starting the tick loop, then start the ticker
+  let stopFn: (() => void) | null = null;
   (async () => {
     try {
       // Reset orphaned in_progress tasks from previous crashed runs
@@ -95,7 +96,6 @@ export function startHeartbeat(convexUrl: string) {
     stopFn = () => clearInterval(interval);
   })();
 
-  let stopFn: (() => void) | null = null;
   return () => { if (stopFn) stopFn(); };
 }
 
