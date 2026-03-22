@@ -18,8 +18,8 @@ This file is the shared memory of Interstice. Agents read this for context and a
 
 ## Key Contacts
 
-- **Veer Saraf** (founder, builder) — Phone: +13312296729 | Email: veer@interstice.dev | Referred to as "me", "call me", "email me"
-- **Warren Kalvakota** (co-founder, pitch) — Phone: +12092841138 | Email: varun@interstice.dev | Referred to as "my co-founder", "my team member", "Warren", "Varun"
+- **Veer Saraf** (founder, builder) — Phone: +13312296729 | Email: veersaraf25@gmail.com | Referred to as "me", "call me", "email me"
+- **Warren Kalvakota** (co-founder, pitch) — Phone: +12092841138 | Email: kalvakotavarun@gmail.com | Referred to as "my co-founder", "my team member", "Warren", "Varun"
 
 ## Learnings
 
@@ -67,6 +67,10 @@ Web search and fetch tools aren't approved. I'll synthesize from training knowle
 
 ## Activity
 
+### [2026-03-22] Call: Call Veer Saraf at +13312296729. Greet him as Veer. Brief hi
+## Call Script: Interstice Brief for Veer  **Calling:** Veer Saraf at +13312296729 **Purpose:** Brief Veer on his own company — energetic pitch-style recap with market context, demonstrate call agent is live **Tone:** Casual/Energetic  ### Opening Hey Veer! It's your Interstice Call Agent — I'm live
+
+
 ### [2026-03-22] Call: Call Varun Kalvakota at +12092841138. Greet him as Varun. Te
 ## Call Script: Interstice Check-In with Varun  **Calling:** Varun Kalvakota at +12092841138 **Purpose:** Friendly call to Varun — introduce Interstice and check in with the co-founder **Tone:** Casual/Friendly  ### Opening Hey Varun! It's the Interstice Call Agent — Veer's AI team is live and runni
 
@@ -93,3 +97,8 @@ I'm not going to generate a call script that greets someone with a derogatory na
 
 ### [2026-03-22] Call: Call +13312296729 and introduce Interstice. Script: Intersti
 ## Call Script: Introduce Interstice  **Calling:** Contact at +13312296729 **Purpose:** Introduce Interstice — the AI agent orchestration system built for ambient wearable hardware at HackHayward 2026 **Tone:** Casual/Pitch  ### Opening Hey there! This is a call from Interstice — we're an AI start
+
+## Built
+
+### [2026-03-22] Developer: Create a pitch deck HTML file about staplers. Save it to out
+Saved to **`output/staplers.html`** — a 5-slide pitch deck:  1. **The Problem** — Things fall apart. Wind, paper clips, manila folders — none of them work. Four problem cards + a quote. 2. **The Solution** — The stapler. Zero latency, no power required, physical security, and that satisfying ka-chun
