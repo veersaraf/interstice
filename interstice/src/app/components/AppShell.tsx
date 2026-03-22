@@ -4,7 +4,7 @@ import { useState, createContext, useContext } from "react";
 import { Sidebar } from "./Sidebar";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { ContactsPage } from "./ContactsPage";
-import { GoalsPage } from "./GoalsPage";
+import { MemoryPage } from "./MemoryPage";
 import { TasksPage } from "./TasksPage";
 import { AgentsPage } from "./AgentsPage";
 import { ApprovalsPage } from "./ApprovalsPage";
@@ -35,8 +35,8 @@ export function AppShell({ children }: AppShellProps) {
         return <FindingsPage />;
       case "contacts":
         return <ContactsPage />;
-      case "goals":
-        return <GoalsPage />;
+      case "memory":
+        return <MemoryPage />;
       default:
         return children;
     }

@@ -9,7 +9,7 @@ import {
   BarChart3,
   ShieldCheck,
   Users,
-  Target,
+  Brain,
   Contact2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -20,7 +20,7 @@ const sectionLabels: Record<string, { label: string; icon: LucideIcon }> = {
   agents:     { label: "Your Team",      icon: Users },
   approvals:  { label: "Approvals",      icon: ShieldCheck },
   findings:   { label: "Outputs",        icon: BarChart3 },
-  goals:      { label: "Goals",          icon: Target },
+  memory:     { label: "Memory",         icon: Brain },
   contacts:   { label: "Contacts",       icon: Contact2 },
 };
 

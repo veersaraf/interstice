@@ -8,7 +8,7 @@ import {
   BarChart3,
   ShieldCheck,
   Users,
-  Target,
+  Brain,
   Contact2,
   Settings,
   ChevronRight,
@@ -47,7 +47,7 @@ const navSections: { label: string | null; items: { id: string; label: string; i
   {
     label: "Company",
     items: [
-      { id: "goals",     label: "Goals",          icon: Target },
+      { id: "memory",    label: "Memory",         icon: Brain },
       { id: "contacts",  label: "Contacts",       icon: Contact2 },
     ],
   },
