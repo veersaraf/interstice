@@ -157,7 +157,11 @@ async function tick(client: ConvexHttpClient) {
 
 /**
  * Check if any data-producing sibling (research) has posted findings for this parent task.
- * Returns true if findings exist OR if there is no research sibling.
+ * Returns true if findings ACTUALLY EXIST in the DB, OR if there is no research sibling.
+ *
+ * Previous bug: we only checked if the research task was "done", but findings
+ * hadn't been written yet — so consumer agents (comms, developer) would start
+ * before research data was available. Now we check for actual findings records.
  */
 async function checkSiblingFindings(
   client: ConvexHttpClient,
@@ -166,23 +170,38 @@ async function checkSiblingFindings(
 ): Promise<boolean> {
   const children: Task[] = await client.query(api.tasks.getChildren, { parentTaskId });
 
-  // Check if there's a research sibling
-  const researchAgent = agentByName.get("research");
-  if (!researchAgent) return true; // No research agent exists
+  // Find all data-producer siblings (research agents)
+  const producerTasks = children.filter((t) => {
+    for (const [name, a] of Array.from(agentByName.entries())) {
+      if (a._id === t.agentId && DATA_PRODUCER_AGENTS.includes(name)) return true;
+    }
+    return false;
+  });
 
-  const researchSibling = children.find(
-    (t) => t.agentId === researchAgent._id
-  );
+  // No research task in this batch — no dependency, proceed
+  if (producerTasks.length === 0) return true;
 
-  if (!researchSibling) return true; // No research task in this batch — no dependency
+  // Check each producer: it must be done AND have findings posted
+  for (const producerTask of producerTasks) {
+    // If producer is still pending or in_progress, consumer must wait
+    if (producerTask.status !== "done" && producerTask.status !== "cancelled") {
+      return false;
+    }
 
-  // If research sibling is done, check for findings
-  if (researchSibling.status === "done") {
-    return true; // Research is done — findings should be posted
+    // Producer is done — verify findings actually exist in the DB
+    if (producerTask.status === "done") {
+      const hasFindings = await client.query(api.findings.existsForTask, {
+        taskId: producerTask._id,
+      });
+      if (!hasFindings) {
+        // Task marked done but findings not posted yet — race condition, wait
+        return false;
+      }
+    }
+    // If cancelled, skip — don't block consumers on a failed producer
   }
 
-  // Research is still running — consumer must wait
-  return false;
+  return true;
 }
 
 async function runAgentTask(

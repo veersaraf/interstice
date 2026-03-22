@@ -44,6 +44,18 @@ export const getRecent = query({
   },
 });
 
+// Check if findings exist for a specific task — used by dependency check
+export const existsForTask = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, args) => {
+    const findings = await ctx.db
+      .query("findings")
+      .withIndex("by_task", (q) => q.eq("taskId", args.taskId))
+      .first();
+    return findings !== null;
+  },
+});
+
 // Get findings from sibling tasks (same parent) — for inter-agent data flow
 // This is how Comms reads Research findings before drafting
 export const getSiblingFindings = query({
