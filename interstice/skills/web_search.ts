@@ -28,13 +28,15 @@ async function search(query: string): Promise<string> {
         {
           role: "system",
           content:
-            "You are a research assistant. Provide detailed, factual answers with specific data points, numbers, and citations. Structure your response with clear sections.",
+            "You are a fast research assistant. Be concise — bullet points, key numbers, and sources only. No filler. Max 200 words.",
         },
         {
           role: "user",
           content: query,
         },
       ],
+      max_tokens: 400,
+      return_related_questions: false,
     }),
   });
 
