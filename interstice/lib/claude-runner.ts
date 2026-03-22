@@ -40,6 +40,8 @@ const CLAUDE_BIN =
 /**
  * Run a Claude CLI subprocess for an agent.
  */
+const PROCESS_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — kill hung Claude processes
+
 export async function runAgent(opts: {
   prompt: string;
   systemPromptPath: string;
@@ -113,6 +115,17 @@ export async function runAgent(opts: {
     let usage: RunResult["usage"] = null;
     const events: ClaudeEvent[] = [];
     let stderrOutput = "";
+    let settled = false;
+
+    // Kill the process if it hangs beyond the timeout
+    const killTimer = setTimeout(() => {
+      if (!settled) {
+        console.error(`[claude-runner] Process timed out after ${PROCESS_TIMEOUT_MS / 1000}s — killing`);
+        proc.kill("SIGKILL");
+        settled = true;
+        reject(new Error(`Claude CLI timed out after ${PROCESS_TIMEOUT_MS / 1000}s`));
+      }
+    }, PROCESS_TIMEOUT_MS);
 
     // Buffer for incomplete JSON lines
     let buffer = "";
@@ -182,6 +195,10 @@ export async function runAgent(opts: {
     });
 
     proc.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
+
       console.log(
         `[claude-runner] Process exited with code ${code}. Output: ${outputText.length} chars`
       );
@@ -227,6 +244,9 @@ export async function runAgent(opts: {
     });
 
     proc.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
       reject(new Error(`Failed to spawn Claude CLI: ${err.message}`));
     });
 

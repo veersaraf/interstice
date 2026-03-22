@@ -61,15 +61,42 @@ export function startHeartbeat(convexUrl: string) {
 
   console.log("[heartbeat] Starting scheduler...");
 
-  const interval = setInterval(async () => {
+  // Run recovery BEFORE starting the tick loop, then start the ticker
+  (async () => {
     try {
-      await tick(client);
-    } catch (err) {
-      console.error("[heartbeat] Tick error:", err);
-    }
-  }, HEARTBEAT_INTERVAL_MS);
+      // Reset orphaned in_progress tasks from previous crashed runs
+      const result = await client.mutation(api.tasks.resetStuck, {});
+      if (result.reset > 0) {
+        console.log(`[heartbeat] Recovered ${result.reset} orphaned in_progress tasks → pending`);
+      }
 
-  return () => clearInterval(interval);
+      // Reset all agents to idle on startup
+      const agents = await client.query(api.agents.list, {});
+      for (const agent of agents) {
+        if (agent.status !== "idle") {
+          await client.mutation(api.agents.setStatus, { id: agent._id, status: "idle" });
+        }
+      }
+      console.log("[heartbeat] All agents reset to idle");
+    } catch (err) {
+      console.error("[heartbeat] Recovery error:", err);
+    }
+
+    console.log("[heartbeat] Recovery complete — starting tick loop");
+
+    const interval = setInterval(async () => {
+      try {
+        await tick(client);
+      } catch (err) {
+        console.error("[heartbeat] Tick error:", err);
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
+    stopFn = () => clearInterval(interval);
+  })();
+
+  let stopFn: (() => void) | null = null;
+  return () => { if (stopFn) stopFn(); };
 }
 
 async function tick(client: ConvexHttpClient) {
@@ -78,6 +105,9 @@ async function tick(client: ConvexHttpClient) {
 
   // Get all pending tasks
   const pendingTasks: Task[] = await client.query(api.tasks.getAllPending, {});
+  if (pendingTasks.length > 0) {
+    console.log(`[heartbeat] Found ${pendingTasks.length} pending tasks`);
+  }
   if (pendingTasks.length === 0) return;
 
   // Get all agents
@@ -112,10 +142,16 @@ async function tick(client: ConvexHttpClient) {
     // Lock and run
     agentLocks.set(agent._id, true);
     activeProcessCount++;
-    runAgentTask(client, agent, task, agents).finally(() => {
-      agentLocks.set(agent._id, false);
-      activeProcessCount--;
-    });
+    console.log(`[heartbeat] Dispatching ${agent.name} for task ${task._id}`);
+    runAgentTask(client, agent, task, agents)
+      .catch((err) => {
+        console.error(`[heartbeat] runAgentTask error for ${agent.name}:`, err);
+      })
+      .finally(() => {
+        agentLocks.set(agent._id, false);
+        activeProcessCount--;
+        console.log(`[heartbeat] ${agent.name} finished, activeProcessCount=${activeProcessCount}`);
+      });
   }
 }
 
@@ -350,6 +386,10 @@ async function runAgentTask(
       id: heartbeatId,
       error: errorMsg,
     });
+
+    // Reset the task to pending so it can be retried on the next heartbeat
+    await client.mutation(api.tasks.failTask, { taskId: task._id });
+    console.log(`[heartbeat] Task ${task._id} reset to pending for retry`);
   } finally {
     // Set agent idle
     await client.mutation(api.agents.setStatus, {

@@ -128,24 +128,35 @@ export const get = query({
   },
 });
 
-// Reset stale in_progress tasks back to pending (recovery from crashed heartbeat)
-export const resetStale = mutation({
-  args: { maxAgeMs: v.optional(v.number()) },
-  handler: async (ctx, args) => {
-    const maxAge = args.maxAgeMs ?? 120_000; // 2 minutes default
-    const cutoff = Date.now() - maxAge;
+// Reset stuck in_progress tasks on server restart — these were orphaned by a crash
+export const resetStuck = mutation({
+  handler: async (ctx) => {
     const stuck = await ctx.db
       .query("tasks")
-      .withIndex("by_status", (q) => q.eq("status", "in_progress"))
+      .filter((q) => q.eq(q.field("status"), "in_progress"))
       .collect();
-    let reset = 0;
+    let count = 0;
     for (const task of stuck) {
-      if (task.startedAt && task.startedAt < cutoff) {
-        await ctx.db.patch(task._id, { status: "pending", startedAt: undefined });
-        reset++;
-      }
+      await ctx.db.patch(task._id, {
+        status: "pending",
+        startedAt: undefined,
+      });
+      count++;
     }
-    return { reset };
+    return { reset: count };
+  },
+});
+
+// Reset a single task back to pending after a failure (so it can be retried)
+export const failTask = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task || task.status !== "in_progress") return;
+    await ctx.db.patch(args.taskId, {
+      status: "pending",
+      startedAt: undefined,
+    });
   },
 });
 
