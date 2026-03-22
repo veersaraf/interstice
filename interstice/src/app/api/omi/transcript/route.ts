@@ -42,9 +42,10 @@ const sessionBuffers = new Map<string, SessionBuffer>();
 const SILENCE_TIMEOUT_MS = 2500; // fire command after 2.5s of no new segments
 const MIN_COMMAND_LENGTH = 5;    // ignore very short fragments
 
-// Wake word — command must start with one of these to be processed
+// Wake word — command must contain one of these to be processed
 // This prevents random ambient speech from triggering the CEO
-const WAKE_WORDS = /^\s*(hey\s+interstice|interstice|hey\s+ceo)\s*[,:]?\s*/i;
+// Matches "interstice" anywhere in the text and extracts everything after it
+const WAKE_WORD_ANYWHERE = /(?:hey\s+)?(?:interstice|interstics|inter\s*stice)[\s,.:!]*(.*)/i;
 
 // Voice approval patterns (these bypass the wake word requirement)
 const APPROVE_PATTERNS = /^\s*(approve|yes|confirm|go ahead|send it|do it)\s*$/i;
@@ -122,15 +123,15 @@ async function fireCommand(uid: string, command: string, sessionId: string) {
   const handled = await tryHandleApprovalVoice(uid, command);
   if (handled) return;
 
-  // Check for wake word — ignore ambient speech without it
-  const wakeMatch = command.match(WAKE_WORDS);
+  // Check for wake word anywhere in the text — ignore ambient speech without it
+  const wakeMatch = command.match(WAKE_WORD_ANYWHERE);
   if (!wakeMatch) {
     console.log(`[OMI] Ignoring (no wake word): "${command.substring(0, 80)}"`);
     return;
   }
 
-  // Strip the wake word from the command
-  const actualCommand = command.replace(WAKE_WORDS, "").trim();
+  // Extract everything after the wake word as the actual command
+  const actualCommand = (wakeMatch[1] || "").trim();
   if (actualCommand.length < MIN_COMMAND_LENGTH) {
     console.log(`[OMI] Ignoring (command too short after wake word): "${actualCommand}"`);
     return;
