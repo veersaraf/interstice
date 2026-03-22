@@ -3,13 +3,22 @@ import { api } from "../convex/_generated/api";
 import { runAgent } from "./claude-runner";
 import { sendOmiNotification, extractOmiUid } from "./omi";
 import path from "path";
+import fs from "fs";
 import { Id } from "../convex/_generated/dataModel";
 
-const HEARTBEAT_INTERVAL_MS = 3000; // Check every 3 seconds
+const HEARTBEAT_INTERVAL_MS = 3000;
 const PROJECT_ROOT = process.cwd();
+const MEMORY_PATH = path.resolve(PROJECT_ROOT, "memory", "company.md");
 
 // Agent lock map — prevent concurrent runs per agent
 const agentLocks = new Map<string, boolean>();
+
+// Agents that produce data others depend on — must finish first
+const DATA_PRODUCER_AGENTS = ["research"];
+// Agents that consume data from producers — must wait
+const DATA_CONSUMER_AGENTS = ["comms", "developer"];
+// Agents whose output requires human approval before action
+const APPROVAL_AGENTS = ["comms", "call"];
 
 interface Agent {
   _id: Id<"agents">;
@@ -25,11 +34,14 @@ interface Task {
   status: string;
   input: string;
   output?: string;
+  createdBy?: Id<"agents">;
 }
 
 interface Finding {
   content: string;
   summary?: string;
+  agentName?: string;
+  agentRole?: string;
 }
 
 interface Session {
@@ -39,7 +51,8 @@ interface Session {
 
 /**
  * Start the heartbeat scheduler.
- * Polls Convex for agents with pending tasks and runs them.
+ * Like Paperclip's heartbeat runner — polls for pending work, respects
+ * agent locks, handles task dependencies, and manages the full lifecycle.
  */
 export function startHeartbeat(convexUrl: string) {
   const client = new ConvexHttpClient(convexUrl);
@@ -65,6 +78,7 @@ async function tick(client: ConvexHttpClient) {
   // Get all agents
   const agents: Agent[] = await client.query(api.agents.list, {});
   const agentMap = new Map(agents.map((a) => [a._id, a]));
+  const agentByName = new Map(agents.map((a) => [a.name, a]));
 
   for (const task of pendingTasks) {
     if (!task.agentId) continue;
@@ -75,24 +89,65 @@ async function tick(client: ConvexHttpClient) {
     // Check lock — skip if agent is already running
     if (agentLocks.get(agent._id)) continue;
 
+    // === DEPENDENCY CHECK ===
+    // If this agent is a data consumer (comms, developer) and has a parent task,
+    // check if the research sibling has posted findings yet.
+    // This ensures Comms waits for Research before drafting.
+    if (DATA_CONSUMER_AGENTS.includes(agent.name) && task.parentTaskId) {
+      const hasData = await checkSiblingFindings(client, task.parentTaskId, agentByName);
+      if (!hasData) {
+        // Research hasn't posted findings yet — skip this tick, try again next heartbeat
+        continue;
+      }
+    }
+
     // Lock and run
     agentLocks.set(agent._id, true);
-    runAgentTask(client, agent, task).finally(() => {
+    runAgentTask(client, agent, task, agents).finally(() => {
       agentLocks.set(agent._id, false);
     });
   }
 }
 
+/**
+ * Check if any data-producing sibling (research) has posted findings for this parent task.
+ * Returns true if findings exist OR if there is no research sibling.
+ */
+async function checkSiblingFindings(
+  client: ConvexHttpClient,
+  parentTaskId: Id<"tasks">,
+  agentByName: Map<string, Agent>
+): Promise<boolean> {
+  const children: Task[] = await client.query(api.tasks.getChildren, { parentTaskId });
+
+  // Check if there's a research sibling
+  const researchAgent = agentByName.get("research");
+  if (!researchAgent) return true; // No research agent exists
+
+  const researchSibling = children.find(
+    (t) => t.agentId === researchAgent._id
+  );
+
+  if (!researchSibling) return true; // No research task in this batch — no dependency
+
+  // If research sibling is done, check for findings
+  if (researchSibling.status === "done") {
+    return true; // Research is done — findings should be posted
+  }
+
+  // Research is still running — consumer must wait
+  return false;
+}
+
 async function runAgentTask(
   client: ConvexHttpClient,
   agent: Agent,
-  task: Task
+  task: Task,
+  allAgents: Agent[]
 ) {
-  console.log(
-    `[heartbeat] Running ${agent.name} on task ${task._id}`
-  );
+  console.log(`[heartbeat] Running ${agent.name} on task ${task._id}`);
 
-  // Claim the task atomically
+  // Claim the task atomically (Paperclip's atomic checkout pattern)
   const claimed = await client.mutation(api.tasks.claim, {
     taskId: task._id,
     agentId: agent._id,
@@ -102,10 +157,11 @@ async function runAgentTask(
     return;
   }
 
-  // Set agent active
+  // Set agent active with current task description
   await client.mutation(api.agents.setStatus, {
     id: agent._id,
     status: "active",
+    currentTask: task.input.substring(0, 100),
   });
 
   // Log heartbeat start
@@ -128,7 +184,7 @@ async function runAgentTask(
       { agentId: agent._id }
     );
 
-    // Build the prompt with context
+    // Build the prompt with full context injection
     const prompt = await buildPrompt(client, agent, task);
 
     const systemPromptPath = path.resolve(
@@ -137,8 +193,7 @@ async function runAgentTask(
       `${agent.name}.md`
     );
 
-    // Run Claude CLI
-    // CEO just outputs JSON delegation — 1 turn. Specialists may use tools — 5 turns.
+    // CEO: 1 turn (JSON delegation only). Specialists: 5 turns (may use tools).
     const maxTurns = agent.name === "ceo" ? 1 : 5;
 
     const result = await runAgent({
@@ -174,24 +229,73 @@ async function runAgentTask(
       });
     }
 
-    // Handle CEO delegation — parse subtask JSON from output
+    // === CEO HANDLING ===
     if (agent.name === "ceo") {
-      const wasDelegation = await handleCeoDelegation(client, agent, task, result.output);
+      const wasDelegation = await handleCeoDelegation(
+        client,
+        agent,
+        task,
+        result.output,
+        allAgents
+      );
 
-      // If this was a synthesis task (not delegation), send OMI notification
       if (!wasDelegation && result.output) {
         await handleCeoSynthesis(client, agent, task, result.output);
       }
     }
 
-    // Post findings for non-CEO agents (shared inter-agent message bus)
+    // === NON-CEO: Post findings + update company memory ===
     if (agent.name !== "ceo" && result.output) {
+      // Post to findings channel (other agents read this)
       await client.mutation(api.findings.post, {
         agentId: agent._id,
         taskId: task._id,
         content: result.output,
         summary: result.output.substring(0, 200),
       });
+
+      // Log inter-agent data sharing
+      await client.mutation(api.activity.log, {
+        agentId: agent._id,
+        action: "findings_posted",
+        content: `${agent.role} posted findings to shared channel`,
+        taskId: task._id,
+      });
+
+      // Append to company memory
+      appendToCompanyMemory(agent, task, result.output);
+    }
+
+    // === APPROVAL GATE ===
+    // Comms and Call agents' outputs go through approval before "sending"
+    if (APPROVAL_AGENTS.includes(agent.name) && result.output) {
+      const needsApproval = detectApprovalNeeded(agent, task, result.output);
+
+      if (needsApproval) {
+        // Create approval record
+        await client.mutation(api.approvals.create, {
+          taskId: task._id,
+          agentId: agent._id,
+          action: needsApproval.action,
+          details: needsApproval.details,
+        });
+
+        // Set task to pending_approval
+        await client.mutation(api.tasks.requestApproval, {
+          taskId: task._id,
+        });
+
+        await client.mutation(api.activity.log, {
+          agentId: agent._id,
+          action: "approval_requested",
+          content: `⚠️ ${agent.role} needs approval: ${needsApproval.action}`,
+          taskId: task._id,
+        });
+
+        // Don't mark as done — wait for approval
+        await client.mutation(api.heartbeats.succeed, { id: heartbeatId });
+        return; // Exit without completing — approval flow handles the rest
+      }
     }
 
     // Complete the task
@@ -200,7 +304,6 @@ async function runAgentTask(
       output: result.output,
     });
 
-    // Log success
     await client.mutation(api.activity.log, {
       agentId: agent._id,
       action: "task_completed",
@@ -241,8 +344,11 @@ async function runAgentTask(
 /**
  * Build the full prompt for an agent, including:
  * - The task input
- * - Recent findings from other agents (inter-agent knowledge sharing)
+ * - Company memory (from company.md)
+ * - Sibling findings (inter-agent data flow — Research → Comms/Dev)
+ * - Recent findings as fallback
  * - Active company goals
+ * - Company contacts
  */
 async function buildPrompt(
   client: ConvexHttpClient,
@@ -254,16 +360,52 @@ async function buildPrompt(
   // Task input
   parts.push(`## Your Task\n\n${task.input}`);
 
-  // Inject findings from other agents into non-CEO prompts
+  // Company memory — the ever-growing knowledge base
   if (agent.name !== "ceo") {
+    try {
+      const memory = fs.readFileSync(MEMORY_PATH, "utf-8");
+      if (memory.trim()) {
+        parts.push(`## Company Memory\n\n${memory}`);
+      }
+    } catch {
+      // Memory file doesn't exist yet — that's fine
+    }
+  }
+
+  // Sibling findings — targeted inter-agent data flow
+  // If this task has a parent (it's a delegated subtask), get findings from sibling tasks
+  if (agent.name !== "ceo" && task.parentTaskId) {
+    try {
+      const siblingFindings: Finding[] = await client.query(
+        api.findings.getSiblingFindings,
+        { parentTaskId: task.parentTaskId }
+      );
+
+      if (siblingFindings.length > 0) {
+        parts.push(
+          `## Findings from Other Agents (Use This Data)\n\n` +
+          `These findings were produced by your colleagues working on related tasks. ` +
+          `USE this data — reference specific numbers, quotes, and insights. ` +
+          `Do NOT repeat research that's already done.\n\n` +
+          siblingFindings
+            .map((f) => `### From ${f.agentRole || "Agent"}:\n\n${f.content}`)
+            .join("\n\n---\n\n")
+        );
+      }
+    } catch {
+      // Sibling findings query failed — fall back to recent
+    }
+  }
+
+  // Fallback: recent findings if no sibling findings
+  if (agent.name !== "ceo" && !task.parentTaskId) {
     const findings: Finding[] = await client.query(api.findings.getRecent, {
-      limit: 5,
+      limit: 3,
     });
     if (findings.length > 0) {
       parts.push(
-        `## Available Findings from Other Agents\n\nUse this context to inform your work — don't repeat research that's already been done:\n\n${findings
-          .map((f) => f.content)
-          .join("\n\n---\n\n")}`
+        `## Available Research Findings\n\n` +
+        findings.map((f) => f.content).join("\n\n---\n\n")
       );
     }
   }
@@ -278,36 +420,50 @@ async function buildPrompt(
     );
   }
 
-  return parts.join("\n\n");
+  // Company contacts
+  const contacts = await client.query(api.contacts.list, {});
+  if (contacts.length > 0) {
+    parts.push(
+      `## Known Contacts\n\n${contacts
+        .map(
+          (c: { name: string; role?: string; company?: string; email?: string; phone?: string; notes?: string }) =>
+            `- **${c.name}**${c.role ? ` (${c.role})` : ""}${c.company ? ` at ${c.company}` : ""}${c.email ? ` — ${c.email}` : ""}${c.phone ? ` — ${c.phone}` : ""}${c.notes ? ` — ${c.notes}` : ""}`
+        )
+        .join("\n")}`
+    );
+  }
+
+  return parts.join("\n\n---\n\n");
 }
 
 /**
  * Parse CEO output for delegation instructions.
  * CEO outputs JSON with a "tasks" array — we create child tasks in Convex.
- * Returns true if delegation happened, false if it was a synthesis/direct response.
  */
 async function handleCeoDelegation(
   client: ConvexHttpClient,
   ceoAgent: Agent,
   parentTask: Task,
-  output: string
+  output: string,
+  allAgents: Agent[]
 ): Promise<boolean> {
   try {
     const jsonMatch = output.match(/\{[\s\S]*"tasks"[\s\S]*\}/);
     if (!jsonMatch) return false;
 
     const parsed = JSON.parse(jsonMatch[0]);
-    if (!parsed.tasks || !Array.isArray(parsed.tasks) || parsed.tasks.length === 0) return false;
+    if (!parsed.tasks || !Array.isArray(parsed.tasks) || parsed.tasks.length === 0)
+      return false;
 
-    // Get agent registry
-    const agents: Agent[] = await client.query(api.agents.list, {});
-    const agentByName = new Map(agents.map((a) => [a.name, a]));
+    const agentByName = new Map(allAgents.map((a) => [a.name, a]));
 
     let delegated = 0;
     for (const subtask of parsed.tasks) {
       const targetAgent = agentByName.get(subtask.agent);
       if (!targetAgent) {
-        console.warn(`[heartbeat] CEO delegated to unknown agent: ${subtask.agent}`);
+        console.warn(
+          `[heartbeat] CEO delegated to unknown agent: ${subtask.agent}`
+        );
         continue;
       }
 
@@ -325,7 +481,7 @@ async function handleCeoDelegation(
         taskId: childTaskId,
       });
 
-      // Send inter-agent message
+      // Send inter-agent delegation message
       await client.mutation(api.messages.send, {
         from: ceoAgent._id,
         to: targetAgent._id,
@@ -337,16 +493,26 @@ async function handleCeoDelegation(
       delegated++;
     }
 
+    if (delegated > 0) {
+      await client.mutation(api.activity.log, {
+        agentId: ceoAgent._id,
+        action: "delegation_complete",
+        content: `CEO delegated ${delegated} tasks to team`,
+        taskId: parentTask._id,
+      });
+    }
+
     return delegated > 0;
   } catch {
-    console.log("[heartbeat] CEO output was not delegation JSON — treating as direct response");
+    console.log(
+      "[heartbeat] CEO output was not delegation JSON — treating as direct response"
+    );
     return false;
   }
 }
 
 /**
  * Handle CEO synthesis response.
- * Sends result back via OMI notification if command came from OMI.
  */
 async function handleCeoSynthesis(
   client: ConvexHttpClient,
@@ -357,18 +523,17 @@ async function handleCeoSynthesis(
   await client.mutation(api.activity.log, {
     agentId: ceoAgent._id,
     action: "synthesis",
-    content: `✅ CEO synthesized: ${output.substring(0, 150)}...`,
+    content: `CEO synthesized results`,
     taskId: task._id,
   });
 
   // Route back to OMI if command originated from OMI
   const omiUid = extractOmiUid(task.input);
   if (omiUid) {
-    // Extract clean message (strip any system markers)
     const cleanMessage = output
       .replace(/\[OMI_UID:[^\]]+\]/g, "")
+      .replace(/\[SYNTHESIS\]/g, "")
       .trim();
-
     await sendOmiNotification(omiUid, cleanMessage);
   }
 }
@@ -382,33 +547,32 @@ async function checkAndTriggerSynthesis(
   parentTaskId: Id<"tasks">
 ) {
   try {
-    // Get the parent task
-    const parent: Task | null = await client.query(api.tasks.get, { id: parentTaskId });
+    const parent: Task | null = await client.query(api.tasks.get, {
+      id: parentTaskId,
+    });
     if (!parent) return;
 
-    // Get all child tasks
-    const children: Task[] = await client.query(api.tasks.getChildren, { parentTaskId });
+    const children: Task[] = await client.query(api.tasks.getChildren, {
+      parentTaskId,
+    });
     if (children.length === 0) return;
 
-    // Check if all are done or cancelled
+    // Check if all are done or cancelled (pending_approval counts as not done)
     const allSettled = children.every(
       (t) => t.status === "done" || t.status === "cancelled"
     );
     if (!allSettled) return;
 
-    // Check if CEO synthesis hasn't already been triggered
-    // (look for existing synthesis tasks pointing to this parent)
-    const allTasks: Task[] = await client.query(api.tasks.list, {});
-    const existingSynthesis = allTasks.find(
-      (t) =>
-        t.parentTaskId === parentTaskId &&
-        t.input.includes("[SYNTHESIS]")
+    // Check if synthesis hasn't already been triggered
+    const existingSynthesis = children.find(
+      (t) => t.input.includes("[SYNTHESIS]")
     );
     if (existingSynthesis) return;
 
-    console.log(`[heartbeat] All children done for parent ${parentTaskId} — triggering CEO synthesis`);
+    console.log(
+      `[heartbeat] All children done for parent ${parentTaskId} — triggering CEO synthesis`
+    );
 
-    // Build synthesis prompt with all child outputs
     const completedChildren = children.filter(
       (t) => t.status === "done" && t.output
     );
@@ -417,11 +581,9 @@ async function checkAndTriggerSynthesis(
       .map((t) => `### Task: ${t.input.substring(0, 80)}\n\n${t.output}`)
       .join("\n\n---\n\n");
 
-    // Extract OMI uid from parent for routing
     const omiUid = extractOmiUid(parent.input);
     const omiTag = omiUid ? `[OMI_UID:${omiUid}]` : "";
 
-    // Strip tags from original command for display
     const originalCommand = parent.input
       .replace(/\[OMI_UID:[^\]]+\]/g, "")
       .trim();
@@ -446,7 +608,6 @@ Provide a 3-5 sentence summary covering:
 
 Do NOT output any JSON. Speak directly to the user.`;
 
-    // Get CEO agent
     const ceo = await client.query(api.agents.getByName, { name: "ceo" });
     if (!ceo) return;
 
@@ -460,10 +621,98 @@ Do NOT output any JSON. Speak directly to the user.`;
     await client.mutation(api.activity.log, {
       agentId: ceo._id,
       action: "synthesis_triggered",
-      content: `📊 All tasks complete — CEO synthesizing ${completedChildren.length} results`,
+      content: `All ${completedChildren.length} tasks complete — CEO synthesizing results`,
       taskId: synthTaskId,
     });
   } catch (err) {
     console.error("[heartbeat] Synthesis check error:", err);
+  }
+}
+
+/**
+ * Detect if an agent's output requires human approval before action.
+ * Returns null if no approval needed, otherwise returns action details.
+ */
+function detectApprovalNeeded(
+  agent: Agent,
+  task: Task,
+  output: string
+): { action: string; details: string } | null {
+  if (agent.name === "comms") {
+    // Check if the task involves sending (not just drafting)
+    const isSendTask =
+      task.input.toLowerCase().includes("send") ||
+      output.toLowerCase().includes("ready to send") ||
+      output.toLowerCase().includes("awaiting approval");
+
+    if (isSendTask) {
+      // Extract email details from output
+      const toMatch = output.match(/\*\*To:\*\*\s*(.+)/);
+      const subjectMatch = output.match(/\*\*Subject:\*\*\s*(.+)/);
+      return {
+        action: "Send Email",
+        details: `To: ${toMatch?.[1] || "unknown"} | Subject: ${subjectMatch?.[1] || "unknown"}\n\n${output.substring(0, 500)}`,
+      };
+    }
+  }
+
+  if (agent.name === "call") {
+    // All call agent actions require approval
+    return {
+      action: "Make Phone Call",
+      details: output.substring(0, 500),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Append task results to company memory file.
+ * This is the ever-growing knowledge base — every completed task
+ * adds to the company's institutional memory.
+ */
+function appendToCompanyMemory(agent: Agent, task: Task, output: string) {
+  try {
+    const timestamp = new Date().toISOString().split("T")[0];
+    const summary = output.substring(0, 300).replace(/\n/g, " ").trim();
+
+    let section: string;
+    if (agent.name === "research") {
+      section = "Learnings";
+    } else if (agent.name === "comms") {
+      section = "Communications";
+    } else if (agent.name === "developer") {
+      section = "Built";
+    } else {
+      section = "Activity";
+    }
+
+    const entry = `\n### [${timestamp}] ${agent.role}: ${task.input.substring(0, 60)}\n${summary}\n`;
+
+    // Read current memory
+    let memory = "";
+    try {
+      memory = fs.readFileSync(MEMORY_PATH, "utf-8");
+    } catch {
+      // File doesn't exist — create it
+      memory = "# Interstice — Company Memory\n\n## Learnings\n\n## Communications\n\n## Built\n\n## Activity\n";
+    }
+
+    // Find the right section and append
+    const sectionHeader = `## ${section}`;
+    const sectionIndex = memory.indexOf(sectionHeader);
+    if (sectionIndex !== -1) {
+      const insertPoint = sectionIndex + sectionHeader.length;
+      memory = memory.slice(0, insertPoint) + "\n" + entry + memory.slice(insertPoint);
+    } else {
+      // Section doesn't exist — append at end
+      memory += `\n${sectionHeader}\n${entry}`;
+    }
+
+    fs.writeFileSync(MEMORY_PATH, memory, "utf-8");
+    console.log(`[heartbeat] Updated company memory: ${section} += ${agent.role} findings`);
+  } catch (err) {
+    console.error("[heartbeat] Failed to update company memory:", err);
   }
 }

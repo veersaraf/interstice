@@ -14,6 +14,7 @@ export default defineSchema({
     ),
     reportsTo: v.optional(v.id("agents")),
     description: v.string(),
+    currentTask: v.optional(v.string()), // What the agent is currently doing
   })
     .index("by_status", ["status"])
     .index("by_name", ["name"]),

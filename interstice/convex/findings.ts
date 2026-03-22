@@ -43,3 +43,35 @@ export const getRecent = query({
     return results;
   },
 });
+
+// Get findings from sibling tasks (same parent) — for inter-agent data flow
+// This is how Comms reads Research findings before drafting
+export const getSiblingFindings = query({
+  args: { parentTaskId: v.id("tasks") },
+  handler: async (ctx, args) => {
+    // Get all sibling tasks
+    const siblings = await ctx.db
+      .query("tasks")
+      .withIndex("by_parent", (q) => q.eq("parentTaskId", args.parentTaskId))
+      .collect();
+
+    // Get findings for each sibling
+    const allFindings = [];
+    for (const sibling of siblings) {
+      const findings = await ctx.db
+        .query("findings")
+        .withIndex("by_task", (q) => q.eq("taskId", sibling._id))
+        .collect();
+      for (const f of findings) {
+        // Look up agent name
+        const agent = await ctx.db.get(f.agentId);
+        allFindings.push({
+          ...f,
+          agentName: agent?.name || "unknown",
+          agentRole: agent?.role || "Unknown",
+        });
+      }
+    }
+    return allFindings;
+  },
+});

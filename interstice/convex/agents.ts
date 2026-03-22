@@ -32,9 +32,17 @@ export const setStatus = mutation({
       v.literal("active"),
       v.literal("error")
     ),
+    currentTask: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, { status: args.status });
+    const patch: Record<string, unknown> = { status: args.status };
+    if (args.currentTask !== undefined) {
+      patch.currentTask = args.currentTask;
+    }
+    if (args.status === "idle") {
+      patch.currentTask = undefined;
+    }
+    await ctx.db.patch(args.id, patch);
   },
 });
 
