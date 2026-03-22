@@ -42,7 +42,11 @@ const sessionBuffers = new Map<string, SessionBuffer>();
 const SILENCE_TIMEOUT_MS = 2500; // fire command after 2.5s of no new segments
 const MIN_COMMAND_LENGTH = 5;    // ignore very short fragments
 
-// Voice approval patterns
+// Wake word — command must start with one of these to be processed
+// This prevents random ambient speech from triggering the CEO
+const WAKE_WORDS = /^\s*(hey\s+interstice|interstice|hey\s+ceo)\s*[,:]?\s*/i;
+
+// Voice approval patterns (these bypass the wake word requirement)
 const APPROVE_PATTERNS = /^\s*(approve|yes|confirm|go ahead|send it|do it)\s*$/i;
 const DENY_PATTERNS = /^\s*(deny|no|cancel|stop|don't|reject)\s*$/i;
 
@@ -112,7 +116,27 @@ async function tryHandleApprovalVoice(uid: string, command: string): Promise<boo
 async function fireCommand(uid: string, command: string, sessionId: string) {
   if (command.length < MIN_COMMAND_LENGTH) return;
 
-  console.log(`[OMI] 🎤 Command from uid=${uid}: "${command}"`);
+  console.log(`[OMI] 🎤 Received from uid=${uid}: "${command}"`);
+
+  // Check if this is a voice approval/denial (bypass wake word)
+  const handled = await tryHandleApprovalVoice(uid, command);
+  if (handled) return;
+
+  // Check for wake word — ignore ambient speech without it
+  const wakeMatch = command.match(WAKE_WORDS);
+  if (!wakeMatch) {
+    console.log(`[OMI] Ignoring (no wake word): "${command.substring(0, 80)}"`);
+    return;
+  }
+
+  // Strip the wake word from the command
+  const actualCommand = command.replace(WAKE_WORDS, "").trim();
+  if (actualCommand.length < MIN_COMMAND_LENGTH) {
+    console.log(`[OMI] Ignoring (command too short after wake word): "${actualCommand}"`);
+    return;
+  }
+
+  console.log(`[OMI] 🎤 Command from uid=${uid}: "${actualCommand}"`);
 
   const convex = getConvex();
 
@@ -121,17 +145,13 @@ async function fireCommand(uid: string, command: string, sessionId: string) {
     await convex.mutation(api.omi_sessions.upsert, {
       uid,
       sessionId,
-      lastTranscript: command,
+      lastTranscript: actualCommand,
     });
   } catch (err) {
     console.error("[OMI] Failed to track session:", err);
   }
 
-  // Check if this is a voice approval/denial
-  const handled = await tryHandleApprovalVoice(uid, command);
-  if (handled) return;
-
-  // Otherwise, create a new CEO task
+  // Create a new CEO task
   try {
     const ceo = await convex.query(api.agents.getByName, { name: "ceo" });
     if (!ceo) {
@@ -140,7 +160,7 @@ async function fireCommand(uid: string, command: string, sessionId: string) {
     }
 
     // Tag the task with the OMI uid so we can route the response back
-    const taggedInput = `[OMI_UID:${uid}]\n\n${command}`;
+    const taggedInput = `[OMI_UID:${uid}]\n\n${actualCommand}`;
 
     const taskId = await convex.mutation(api.tasks.create, {
       agentId: ceo._id,
@@ -149,7 +169,7 @@ async function fireCommand(uid: string, command: string, sessionId: string) {
 
     await convex.mutation(api.activity.log, {
       action: "omi_command",
-      content: `🎤 Voice command: "${command}"`,
+      content: `🎤 Voice command: "${actualCommand}"`,
       taskId,
     });
 
