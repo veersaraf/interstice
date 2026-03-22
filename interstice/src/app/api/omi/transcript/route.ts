@@ -45,7 +45,7 @@ const MIN_COMMAND_LENGTH = 5;    // ignore very short fragments
 // Wake word — command must contain one of these to be processed
 // This prevents random ambient speech from triggering the CEO
 // Matches "interstice" anywhere in the text and extracts everything after it
-const WAKE_WORD_ANYWHERE = /(?:hey\s+)?(?:interstice|interstics|inter\s*stice)[\s,.:!]*(.*)/i;
+const WAKE_WORD_ANYWHERE = /(?:hey\s+)?(?:interstice|interstics|inter\s*stice|steve)[\s,.:!]*(.*)/i;
 
 // Voice approval patterns (these bypass the wake word requirement)
 const APPROVE_PATTERNS = /^\s*(approve|yes|confirm|go ahead|send it|do it)\s*$/i;
