@@ -257,7 +257,7 @@ export function TasksPage() {
         {/* ---- Header ---- */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <span className="text-lg">⚡</span>
+            <Zap className="w-5 h-5 text-blue-600" />
             <h1 className="text-sm font-semibold text-foreground">Tasks</h1>
             <span className="text-[11px] text-muted-foreground tabular-nums">{counts.all}</span>
           </div>
@@ -756,7 +756,12 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
 
         {/* Output tab — rich rendering */}
         {activeTab === "output" && task.output && (
-          <TaskOutputSection output={task.output} />
+          <TaskOutputSection
+            output={task.output}
+            taskTitle={task.input}
+            agentName={agent?.name}
+            completedAt={task.completedAt}
+          />
         )}
 
         {/* Activity tab — comments + activity feed */}
@@ -879,7 +884,12 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
 /*  TaskOutputSection — rich rendered output with format detection      */
 /* ------------------------------------------------------------------ */
 
-function TaskOutputSection({ output }: { output: string }) {
+function TaskOutputSection({ output, taskTitle, agentName, completedAt }: {
+  output: string;
+  taskTitle?: string;
+  agentName?: string;
+  completedAt?: number;
+}) {
   const [htmlPreviewOpen, setHtmlPreviewOpen] = useState(false);
   const format = useMemo(() => detectOutputFormat(output), [output]);
 
@@ -897,6 +907,13 @@ function TaskOutputSection({ output }: { output: string }) {
             content={output}
             filename={format === "html" ? "output.html" : format === "markdown" ? "output.md" : "output.txt"}
             mimeType={format === "html" ? "text/html" : "text/plain"}
+          />
+          <DownloadPDFButton
+            content={output}
+            format={format}
+            taskTitle={taskTitle}
+            agentName={agentName}
+            completedAt={completedAt}
           />
         </div>
       </div>
@@ -1150,6 +1167,119 @@ function DownloadTextButton({ content, filename, mimeType }: { content: string; 
       Download
     </button>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/*  DownloadPDFButton — generate and download PDF from output          */
+/* ------------------------------------------------------------------ */
+
+function DownloadPDFButton({
+  content,
+  format,
+  taskTitle,
+  agentName,
+  completedAt,
+}: {
+  content: string;
+  format: "markdown" | "html" | "text";
+  taskTitle?: string;
+  agentName?: string;
+  completedAt?: number;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleDownload = async () => {
+    setLoading(true);
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+
+      const timestamp = completedAt
+        ? new Date(completedAt).toLocaleString()
+        : new Date().toLocaleString();
+
+      let bodyHtml: string;
+      if (format === "html") {
+        const bodyMatch = content.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        bodyHtml = bodyMatch ? bodyMatch[1] : content;
+      } else if (format === "markdown") {
+        bodyHtml = simpleMarkdownToHtml(content);
+      } else {
+        bodyHtml = `<pre style="white-space:pre-wrap;font-family:monospace;font-size:12px;line-height:1.6">${escapeHtml(content)}</pre>`;
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = `
+        <div style="font-family: system-ui, -apple-system, sans-serif; color: #1a1a1a; padding: 0;">
+          <div style="border-bottom: 2px solid #e8734a; padding-bottom: 16px; margin-bottom: 24px;">
+            <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 8px 0; color: #1a1a1a;">
+              ${escapeHtml(taskTitle || "Task Output")}
+            </h1>
+            <div style="font-size: 11px; color: #78716c;">
+              ${agentName ? `<span>Agent: <strong>${escapeHtml(agentName)}</strong></span> &middot; ` : ""}
+              <span>Completed: ${escapeHtml(timestamp)}</span>
+              <span style="float: right; color: #e8734a; font-weight: 600;">Interstice</span>
+            </div>
+          </div>
+          <div style="font-size: 13px; line-height: 1.7;">
+            ${bodyHtml}
+          </div>
+        </div>
+      `;
+
+      await html2pdf()
+        .set({
+          margin: [16, 16, 16, 16],
+          filename: `${(taskTitle || "output").slice(0, 40).replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
+          image: { type: "jpeg", quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .from(wrapper)
+        .save();
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={loading}
+      className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors font-medium disabled:opacity-50"
+    >
+      <FileText className="w-3 h-3" />
+      {loading ? "Generating..." : "PDF"}
+    </button>
+  );
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function simpleMarkdownToHtml(md: string): string {
+  return md
+    .replace(/```[\w]*\n([\s\S]*?)```/g, '<pre style="background:#f5f2ed;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;border:1px solid #e7e2db"><code>$1</code></pre>')
+    .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:600;margin:16px 0 8px">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:600;margin:20px 0 8px">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="font-size:18px;font-weight:700;margin:24px 0 8px">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`([^`]+)`/g, '<code style="background:#f5f2ed;padding:1px 4px;border-radius:3px;font-size:11px">$1</code>')
+    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#e8734a">$1</a>')
+    .replace(/^\s*[-*]\s+(.+)$/gm, '<li style="margin-left:20px;list-style:disc">$1</li>')
+    .replace(/^\s*\d+\.\s+(.+)$/gm, '<li style="margin-left:20px;list-style:decimal">$1</li>')
+    .replace(/^>\s+(.+)$/gm, '<blockquote style="border-left:3px solid #e8734a;padding-left:12px;color:#78716c;font-style:italic">$1</blockquote>')
+    .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e7e2db;margin:16px 0">')
+    .replace(/\n\n/g, "</p><p>")
+    .replace(/\n/g, "<br>")
+    .replace(/^(.+)/, "<p>$1</p>");
 }
 
 /* ------------------------------------------------------------------ */
