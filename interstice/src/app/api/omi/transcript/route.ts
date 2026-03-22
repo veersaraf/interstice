@@ -130,8 +130,22 @@ async function fireCommand(uid: string, command: string, sessionId: string) {
     return;
   }
 
-  // Extract everything after the wake word as the actual command
-  const actualCommand = (wakeMatch[1] || "").trim();
+  // Extract the command after the wake word, trimming trailing noise
+  // OMI memory transcripts include everything said — we only want the command
+  const rawAfterWake = (wakeMatch[1] || "").trim();
+
+  // Cut at natural sentence boundaries to remove post-command chatter
+  // Look for: period followed by space/capital, "okay", "um", "so", "and then", "like"
+  const sentenceEnd = rawAfterWake.match(
+    /^(.+?(?:\.|!|\?))\s+(?:[A-Z]|okay|um|uh|so\s|and\s+then|like\s|yeah|I\s+don)/
+  );
+  let actualCommand = sentenceEnd ? sentenceEnd[1].trim() : rawAfterWake;
+
+  // Cap at 300 chars to prevent massive transcript dumps
+  if (actualCommand.length > 300) {
+    actualCommand = actualCommand.substring(0, 300).trim();
+  }
+
   if (actualCommand.length < MIN_COMMAND_LENGTH) {
     console.log(`[OMI] Ignoring (command too short after wake word): "${actualCommand}"`);
     return;
@@ -161,7 +175,8 @@ async function fireCommand(uid: string, command: string, sessionId: string) {
     }
 
     // Tag the task with the OMI uid so we can route the response back
-    const taggedInput = `[OMI_UID:${uid}]\n\n${actualCommand}`;
+    // Mark as voice command so CEO knows to extract intent from possibly noisy speech
+    const taggedInput = `[OMI_UID:${uid}][VOICE_COMMAND]\n\n${actualCommand}`;
 
     const taskId = await convex.mutation(api.tasks.create, {
       agentId: ceo._id,
