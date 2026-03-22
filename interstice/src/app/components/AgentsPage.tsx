@@ -1,9 +1,11 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
-import { Network, Zap, AlertCircle, Clock, FileText } from "lucide-react";
+import { Network, Zap, AlertCircle, Clock, FileText, Cpu, Settings } from "lucide-react";
+import { useState } from "react";
+import { Id } from "../../../convex/_generated/dataModel";
 
 const roleConfig: Record<string, { color: string; bg: string; border: string }> = {
   CEO:            { color: "text-yellow-400", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.15)" },
@@ -12,6 +14,93 @@ const roleConfig: Record<string, { color: string; bg: string; border: string }> 
   Developer:      { color: "text-green-400",  bg: "rgba(52,211,153,0.08)", border: "rgba(52,211,153,0.15)" },
   Call:           { color: "text-orange-400", bg: "rgba(251,146,60,0.08)", border: "rgba(251,146,60,0.15)" },
 };
+
+const claudeModels = [
+  { id: "claude-opus-4-6", label: "Opus 4.6" },
+  { id: "claude-sonnet-4-6", label: "Sonnet 4.6" },
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
+];
+
+const codexModels = [
+  { id: "gpt-5.4", label: "GPT-5.4" },
+  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+  { id: "o3", label: "o3" },
+  { id: "o4-mini", label: "o4-mini" },
+  { id: "gpt-5-mini", label: "GPT-5 Mini" },
+  { id: "codex-mini-latest", label: "Codex Mini" },
+];
+
+function AdapterSelector({ agentId, currentAdapter, currentModel }: {
+  agentId: Id<"agents">;
+  currentAdapter?: "claude" | "codex";
+  currentModel?: string;
+}) {
+  const setAdapter = useMutation(api.agents.setAdapter);
+  const [expanded, setExpanded] = useState(false);
+  const adapter = currentAdapter || "claude";
+  const models = adapter === "codex" ? codexModels : claudeModels;
+
+  const handleAdapterChange = async (newAdapter: "claude" | "codex") => {
+    const defaultModel = newAdapter === "codex" ? "gpt-5.3-codex" : undefined;
+    await setAdapter({ id: agentId, adapterType: newAdapter, model: defaultModel });
+  };
+
+  const handleModelChange = async (model: string) => {
+    await setAdapter({ id: agentId, model });
+  };
+
+  return (
+    <div>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+      >
+        <Settings className="w-3 h-3" />
+        <Cpu className="w-3 h-3" />
+        <span className="font-medium">
+          {adapter === "codex" ? "Codex" : "Claude"}
+          {currentModel && <span className="text-gray-600 ml-1">({models.find(m => m.id === currentModel)?.label || currentModel})</span>}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          {/* Adapter toggle */}
+          <div className="flex gap-1">
+            {(["claude", "codex"] as const).map((a) => (
+              <button
+                key={a}
+                onClick={() => handleAdapterChange(a)}
+                className={cn(
+                  "px-2.5 py-1 rounded text-[10px] font-semibold transition-all",
+                  adapter === a
+                    ? a === "claude"
+                      ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    : "text-gray-600 hover:text-gray-400 border border-transparent"
+                )}
+              >
+                {a === "claude" ? "Claude" : "Codex"}
+              </button>
+            ))}
+          </div>
+
+          {/* Model selector */}
+          <select
+            value={currentModel || ""}
+            onChange={(e) => handleModelChange(e.target.value)}
+            className="w-full text-[10px] bg-black/30 text-gray-300 border border-white/10 rounded px-2 py-1 outline-none focus:border-blue-500/50"
+          >
+            <option value="">Default model</option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>{m.label} ({m.id})</option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AgentsPage() {
   const agents = useQuery(api.agents.list);
@@ -54,7 +143,6 @@ export function AgentsPage() {
           const doneTasks = agentTasks.filter((t) => t.status === "done").length;
           const activeTasks = agentTasks.filter((t) => ["in_progress", "pending"].includes(t.status)).length;
 
-          // Get recent output for this agent
           const recentOutput = activities
             ?.filter((a) => a.agentId === agent._id && a.action === "agent_output")
             ?.slice(0, 1)[0];
@@ -122,6 +210,15 @@ export function AgentsPage() {
                   <span className="text-xs text-red-400">Agent in error state</span>
                 </div>
               )}
+
+              {/* Adapter / Model selector */}
+              <div className="px-4 py-2.5" style={{ borderTop: "1px solid var(--border)" }}>
+                <AdapterSelector
+                  agentId={agent._id}
+                  currentAdapter={agent.adapterType as "claude" | "codex" | undefined}
+                  currentModel={agent.model}
+                />
+              </div>
 
               {/* Status bar */}
               <div
