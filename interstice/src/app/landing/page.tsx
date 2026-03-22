@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 export default function LandingPage() {
   return (
     <div className="fixed inset-0 z-[100] overflow-y-auto bg-white">
@@ -115,14 +113,14 @@ export default function LandingPage() {
 
         {/* ── CTA ── */}
         <section className="flex flex-col items-center text-center max-w-md mx-auto mb-16">
-          <Link
-            href="/"
+          <a
+            href="mailto:veersaraf25@gmail.com?subject=Interstice%20%E2%80%94%20Inquiry"
             className="group inline-flex items-center gap-2 px-8 py-3.5 text-[13px] font-bold tracking-wide text-stone-900 border border-stone-900 rounded-none hover:bg-stone-900 hover:text-white transition-all duration-300"
             style={{ fontFamily: "'Nanum Myeongjo', 'Georgia', serif" }}
           >
-            Open Dashboard
+            Contact us for details
             <span className="transition-transform duration-300 group-hover:translate-x-1">&rarr;</span>
-          </Link>
+          </a>
         </section>
 
         {/* ── Footer ── */}
