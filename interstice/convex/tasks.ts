@@ -147,6 +147,29 @@ export const resetStuck = mutation({
   },
 });
 
+// Reset stale in_progress tasks older than maxAgeMs — called every heartbeat tick
+export const resetStale = mutation({
+  args: { maxAgeMs: v.number() },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const stale = await ctx.db
+      .query("tasks")
+      .withIndex("by_status", (q) => q.eq("status", "in_progress"))
+      .collect();
+    let count = 0;
+    for (const task of stale) {
+      if (task.startedAt && now - task.startedAt > args.maxAgeMs) {
+        await ctx.db.patch(task._id, {
+          status: "pending",
+          startedAt: undefined,
+        });
+        count++;
+      }
+    }
+    return { reset: count };
+  },
+});
+
 // Reset a single task back to pending after a failure (so it can be retried)
 export const failTask = mutation({
   args: { taskId: v.id("tasks") },
