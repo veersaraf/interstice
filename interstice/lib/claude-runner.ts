@@ -47,6 +47,7 @@ export async function runAgent(opts: {
   cwd?: string;
   skillsDir?: string;
   maxTurns?: number;
+  allowedTools?: string[];
   onEvent?: (event: ClaudeEvent) => void;
 }): Promise<RunResult> {
   const {
@@ -56,6 +57,7 @@ export async function runAgent(opts: {
     cwd,
     skillsDir,
     maxTurns = 3,
+    allowedTools,
     onEvent,
   } = opts;
 
@@ -68,6 +70,11 @@ export async function runAgent(opts: {
     "--max-turns",
     String(maxTurns),
   ];
+
+  // Pre-approve tools so agents can run without interactive permission prompts
+  if (allowedTools && allowedTools.length > 0) {
+    args.push("--allowedTools", ...allowedTools);
+  }
 
   // Resume session if we have one
   if (sessionId) {

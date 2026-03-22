@@ -196,6 +196,9 @@ async function runAgentTask(
     // CEO: 1 turn (JSON delegation only). Specialists: 5 turns (may use tools).
     const maxTurns = agent.name === "ceo" ? 1 : 5;
 
+    // Pre-approve tools per agent so they can run non-interactively
+    const allowedTools = getAgentTools(agent.name);
+
     const result = await runAgent({
       prompt,
       systemPromptPath,
@@ -203,6 +206,7 @@ async function runAgentTask(
         session?.cwd === PROJECT_ROOT ? session.claudeSessionId : null,
       cwd: PROJECT_ROOT,
       maxTurns,
+      allowedTools,
       onEvent: async (event) => {
         // Stream assistant output to activity log in real-time
         if (event.type === "assistant" && event.message?.content) {
@@ -714,5 +718,45 @@ function appendToCompanyMemory(agent: Agent, task: Task, output: string) {
     console.log(`[heartbeat] Updated company memory: ${section} += ${agent.role} findings`);
   } catch (err) {
     console.error("[heartbeat] Failed to update company memory:", err);
+  }
+}
+
+/**
+ * Get pre-approved tools for each agent.
+ * These are passed to --allowedTools so agents can run non-interactively
+ * without hitting permission prompts.
+ */
+function getAgentTools(agentName: string): string[] {
+  switch (agentName) {
+    case "ceo":
+      // CEO just outputs JSON — no tools needed
+      return [];
+    case "research":
+      // Research needs Bash to run web_search.ts via Perplexity
+      return [
+        "Bash(npx tsx skills/web_search.ts*)",
+        "Read",
+        "WebSearch",
+        "WebFetch",
+      ];
+    case "comms":
+      // Comms reads files for context
+      return ["Read", "Write"];
+    case "developer":
+      // Developer reads and writes code files
+      return [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash(mkdir*)",
+      ];
+    case "call":
+      // Call agent can run call scripts
+      return [
+        "Read",
+        "Bash(npx tsx skills/*)",
+      ];
+    default:
+      return ["Read"];
   }
 }
