@@ -7,9 +7,7 @@ import { ContactsPage } from "./ContactsPage";
 import { GoalsPage } from "./GoalsPage";
 import { TasksPage } from "./TasksPage";
 import { AgentsPage } from "./AgentsPage";
-import { ActivityPage } from "./ActivityPage";
 import { ApprovalsPage } from "./ApprovalsPage";
-import { MessagesPage } from "./MessagesPage";
 import { FindingsPage } from "./FindingsPage";
 
 /* ─── Navigation context so children can navigate ─── */
@@ -31,12 +29,8 @@ export function AppShell({ children }: AppShellProps) {
         return <TasksPage />;
       case "agents":
         return <AgentsPage />;
-      case "activity":
-        return <ActivityPage />;
       case "approvals":
         return <ApprovalsPage />;
-      case "messages":
-        return <MessagesPage />;
       case "findings":
         return <FindingsPage />;
       case "contacts":

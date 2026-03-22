@@ -1,35 +1,81 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { cn, timeAgo } from "../../lib/utils";
-import { FileText, ChevronDown, Copy, Check } from "lucide-react";
-import { useState } from "react";
+import {
+  FileText,
+  ChevronDown,
+  Copy,
+  Check,
+  BarChart3,
+  Download,
+  ExternalLink,
+  UserPlus,
+  Eye,
+} from "lucide-react";
+import { useState, useMemo } from "react";
 import { Card } from "../../components/ui/card";
+import { Badge } from "../../components/ui/badge";
+import ReactMarkdown from "react-markdown";
 
 const roleColors: Record<string, string> = {
-  CEO:            "text-amber-700",
-  Research:       "text-blue-700",
+  CEO: "text-amber-700",
+  Research: "text-blue-700",
   Communications: "text-purple-700",
-  Developer:      "text-emerald-700",
-  Call:           "text-orange-700",
+  Developer: "text-emerald-700",
+  Call: "text-orange-700",
 };
 
 const roleDimBg: Record<string, string> = {
-  CEO:            "bg-amber-50",
-  Research:       "bg-blue-50",
+  CEO: "bg-amber-50",
+  Research: "bg-blue-50",
   Communications: "bg-purple-50",
-  Developer:      "bg-emerald-50",
-  Call:           "bg-orange-50",
+  Developer: "bg-emerald-50",
+  Call: "bg-orange-50",
 };
 
-export function FindingsPage() {
-  const findings = useQuery(api.findings.list);
-  const agents = useQuery(api.agents.list);
-  const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+const roleAvatar: Record<string, string> = {
+  CEO: "/avatars/ceo.png",
+  Research: "/avatars/research.png",
+  Communications: "/avatars/communications.png",
+  Developer: "/avatars/developer.png",
+  Call: "/avatars/call.png",
+};
 
-  if (!findings || !agents) {
+function detectOutputFormat(output: string): "markdown" | "html" | "text" {
+  const trimmed = output.trim();
+  if (
+    /^<!doctype\s+html/i.test(trimmed) ||
+    /^<html[\s>]/i.test(trimmed) ||
+    (/<\/(div|section|article|main|body|head)>/i.test(trimmed) && trimmed.length > 200)
+  ) return "html";
+  const mdSignals = [/^#{1,6}\s/m, /^\s*[-*]\s/m, /^\s*\d+\.\s/m, /```/, /\*\*[^*]+\*\*/, /\[.+?\]\(.+?\)/, /^\s*>\s/m, /\|.+\|.+\|/];
+  if (mdSignals.filter((re) => re.test(trimmed)).length >= 2) return "markdown";
+  return "text";
+}
+
+export function FindingsPage() {
+  const tasks = useQuery(api.tasks.list);
+  const agents = useQuery(api.agents.list);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showAddAgent, setShowAddAgent] = useState(false);
+
+  // Filter to tasks that have output
+  const tasksWithOutput = useMemo(() => {
+    if (!tasks) return [];
+    return tasks
+      .filter((t) => t.output && t.output.trim().length > 0)
+      .sort((a, b) => (b.completedAt ?? b._creationTime) - (a.completedAt ?? a._creationTime));
+  }, [tasks]);
+
+  const agentMap = useMemo(
+    () => new Map((agents ?? []).map((a) => [a._id, a])),
+    [agents]
+  );
+
+  if (!tasks || !agents) {
     return (
       <div className="max-w-[1100px] space-y-3">
         {[...Array(3)].map((_, i) => (
@@ -39,10 +85,8 @@ export function FindingsPage() {
     );
   }
 
-  const agentMap = new Map(agents.map((a) => [a._id, a]));
-
   const toggleExpand = (id: string) => {
-    setExpandedFindings((prev) => {
+    setExpandedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -58,89 +102,207 @@ export function FindingsPage() {
     } catch { /* no-op */ }
   };
 
+  const downloadOutput = (content: string, format: string) => {
+    const ext = format === "html" ? "html" : format === "markdown" ? "md" : "txt";
+    const blob = new Blob([content], { type: format === "html" ? "text/html" : "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `output.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openInNewTab = (content: string, format: string) => {
+    const blob = new Blob([content], { type: format === "html" ? "text/html" : "text/plain" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  };
+
+  const cleanInput = (raw: string) =>
+    raw.replace(/\[OMI_UID:[^\]]+\]/g, "").replace(/\[SYNTHESIS\]/g, "").replace(/\[VOICE_COMMAND\]/g, "").trim();
+
   return (
     <div className="max-w-[1100px] space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-2.5">
-        <FileText className="w-4 h-4 text-muted-foreground" />
-        <h1 className="text-sm font-semibold text-foreground">Agent Output & Findings</h1>
-        <span className="text-[11px] text-muted-foreground font-medium">{findings.length} results</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <BarChart3 className="w-5 h-5 text-primary" />
+          <h1 className="text-sm font-semibold text-foreground">Outputs</h1>
+          <span className="text-[11px] text-muted-foreground font-medium">
+            {tasksWithOutput.length} output{tasksWithOutput.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+        <button
+          onClick={() => setShowAddAgent(!showAddAgent)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-primary text-white hover:bg-primary/90 transition-colors"
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          Add team member
+        </button>
       </div>
 
-      {findings.length === 0 ? (
+      {/* Add agent panel */}
+      {showAddAgent && (
+        <Card className="p-4">
+          <p className="text-xs font-semibold text-foreground mb-2">Add a new team member</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            To add a new agent to your team, go to the <strong>Your Team</strong> page where you can configure agent roles, models, and capabilities.
+          </p>
+          <button
+            onClick={() => setShowAddAgent(false)}
+            className="text-xs text-primary hover:text-primary/80 font-medium"
+          >
+            Dismiss
+          </button>
+        </Card>
+      )}
+
+      {tasksWithOutput.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-cyan-50 border border-cyan-200">
-            <FileText className="w-6 h-6 text-cyan-600" />
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-primary/10 border border-primary/20">
+            <FileText className="w-6 h-6 text-primary" />
           </div>
-          <p className="text-sm font-medium text-foreground mb-1">No findings yet</p>
+          <p className="text-sm font-medium text-foreground mb-1">No outputs yet</p>
           <p className="text-xs text-muted-foreground">
-            Agent research results and outputs will appear here
+            Task outputs will appear here as your agents complete work
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {findings.map((finding) => {
-            const agent = agentMap.get(finding.agentId);
-            const isExpanded = expandedFindings.has(finding._id);
-            const isLong = finding.content.length > 400;
-            const isCopied = copiedId === finding._id;
+          {tasksWithOutput.map((task) => {
+            const agent = task.agentId ? agentMap.get(task.agentId) ?? null : null;
+            const isExpanded = expandedIds.has(task._id);
+            const isCopied = copiedId === task._id;
+            const output = task.output!;
+            const format = detectOutputFormat(output);
+            const taskTitle = cleanInput(task.input);
+            const role = agent?.role ?? "";
 
             return (
-              <Card key={finding._id} className="overflow-hidden">
+              <Card key={task._id} className="overflow-hidden">
                 {/* Header */}
                 <div
                   className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-accent/20 transition-colors"
-                  onClick={() => toggleExpand(finding._id)}
+                  onClick={() => toggleExpand(task._id)}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-7 h-7 rounded-md flex items-center justify-center shrink-0",
-                      roleDimBg[agent?.role ?? ""] ?? "bg-stone-50"
-                    )}>
-                      <FileText className={cn("w-3.5 h-3.5", roleColors[agent?.role ?? ""] ?? "text-stone-500")} />
-                    </div>
-                    <div>
-                      <span className={cn("text-xs font-bold", roleColors[agent?.role ?? ""] ?? "text-stone-500")}>
-                        {agent?.role ?? "Agent"}
-                      </span>
-                      {finding.summary && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{finding.summary}</p>
-                      )}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {agent && (
+                      <div className={cn(
+                        "w-7 h-7 rounded-md flex items-center justify-center shrink-0",
+                        roleDimBg[role] ?? "bg-stone-50"
+                      )}>
+                        <img src={roleAvatar[role] ?? ""} alt={role} className="w-full h-full object-cover rounded-md" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {taskTitle.length > 80 ? taskTitle.slice(0, 80) + "…" : taskTitle}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {agent && (
+                          <span className={cn("text-[10px] font-semibold", roleColors[role] ?? "text-stone-500")}>
+                            {role}
+                          </span>
+                        )}
+                        <span className={cn(
+                          "text-[9px] px-1.5 py-0.5 rounded-full font-medium uppercase tracking-wider",
+                          format === "html" ? "bg-blue-50 text-blue-600" :
+                          format === "markdown" ? "bg-purple-50 text-purple-600" :
+                          "bg-stone-100 text-stone-500"
+                        )}>
+                          {format}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground/60 tabular-nums">{timeAgo(finding._creationTime)}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+                      {timeAgo(task.completedAt ?? task._creationTime)}
+                    </span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); copyContent(finding.content, finding._id); }}
+                      onClick={(e) => { e.stopPropagation(); copyContent(output, task._id); }}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                      title="Copy to clipboard"
+                      title="Copy"
                     >
                       {isCopied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadOutput(output, format); }}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                      title="Download"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                    {format === "html" && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openInNewTab(output, format); }}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        title="Open in new tab"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <ChevronDown className={cn("w-4 h-4 text-muted-foreground/60 transition-transform", isExpanded && "rotate-180")} />
                   </div>
                 </div>
 
-                {/* Content */}
-                <div className="px-4 pb-4 border-t border-border">
-                  <div className={cn(
-                    "text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed pt-3 font-mono",
-                    !isExpanded && isLong && "max-h-32 overflow-hidden relative"
-                  )}>
-                    {isExpanded || !isLong ? finding.content : finding.content.substring(0, 400) + "..."}
-                    {!isExpanded && isLong && (
-                      <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent" />
+                {/* Expanded output content */}
+                {isExpanded && (
+                  <div className="border-t border-border">
+                    {format === "html" ? (
+                      <div className="bg-white">
+                        <iframe
+                          srcDoc={output}
+                          className="w-full border-0"
+                          style={{ minHeight: "400px", height: "50vh" }}
+                          sandbox="allow-scripts"
+                          title="HTML output"
+                        />
+                      </div>
+                    ) : format === "markdown" ? (
+                      <div className="px-5 py-4 prose-interstice">
+                        <ReactMarkdown
+                          components={{
+                            h1: ({ children }) => <h1 className="text-sm font-bold text-foreground mb-2 mt-3 first:mt-0">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-[13px] font-semibold text-foreground mb-1.5 mt-2.5">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-xs font-semibold text-foreground mb-1 mt-2">{children}</h3>,
+                            p: ({ children }) => <p className="text-xs text-foreground/85 leading-relaxed mb-2">{children}</p>,
+                            ul: ({ children }) => <ul className="text-xs text-foreground/85 list-disc pl-4 mb-2 space-y-0.5">{children}</ul>,
+                            ol: ({ children }) => <ol className="text-xs text-foreground/85 list-decimal pl-4 mb-2 space-y-0.5">{children}</ol>,
+                            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                            code: ({ className, children }) => {
+                              const isBlock = className?.includes("language-");
+                              return isBlock ? (
+                                <pre className="bg-card rounded-lg p-3 border border-border/50 overflow-x-auto mb-2">
+                                  <code className="text-[11px] font-mono text-foreground/90">{children}</code>
+                                </pre>
+                              ) : (
+                                <code className="text-[11px] font-mono bg-primary/10 text-primary px-1 py-0.5 rounded">{children}</code>
+                              );
+                            },
+                            blockquote: ({ children }) => (
+                              <blockquote className="border-l-2 border-primary/30 pl-3 my-2 text-xs text-muted-foreground italic">{children}</blockquote>
+                            ),
+                            a: ({ href, children }) => (
+                              <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                {children}
+                              </a>
+                            ),
+                          }}
+                        >
+                          {output}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="px-5 py-4">
+                        <div className="text-[13px] text-foreground/85 whitespace-pre-wrap leading-relaxed">
+                          {output}
+                        </div>
+                      </div>
                     )}
                   </div>
-                  {!isExpanded && isLong && (
-                    <button
-                      onClick={() => toggleExpand(finding._id)}
-                      className="text-[11px] text-primary hover:text-primary/80 mt-2 font-medium"
-                    >
-                      Show full output
-                    </button>
-                  )}
-                </div>
+                )}
               </Card>
             );
           })}

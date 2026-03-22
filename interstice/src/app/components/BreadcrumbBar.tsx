@@ -2,19 +2,26 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { ChevronRight } from "lucide-react";
-import { cn } from "../../lib/utils";
+import {
+  ChevronRight,
+  LayoutDashboard,
+  Zap,
+  BarChart3,
+  ShieldCheck,
+  Users,
+  Target,
+  Contact2,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const sectionLabels: Record<string, string> = {
-  dashboard:  "Dashboard",
-  tasks:      "Tasks",
-  agents:     "Agents",
-  activity:   "Activity",
-  approvals:  "Approvals",
-  messages:   "Messages",
-  findings:   "Output & Findings",
-  goals:      "Goals",
-  contacts:   "Contacts",
+const sectionLabels: Record<string, { label: string; icon: LucideIcon }> = {
+  dashboard:  { label: "Dashboard",      icon: LayoutDashboard },
+  tasks:      { label: "Tasks",          icon: Zap },
+  agents:     { label: "Your Team",      icon: Users },
+  approvals:  { label: "Approvals",      icon: ShieldCheck },
+  findings:   { label: "Outputs",        icon: BarChart3 },
+  goals:      { label: "Goals",          icon: Target },
+  contacts:   { label: "Contacts",       icon: Contact2 },
 };
 
 interface BreadcrumbBarProps {
@@ -26,14 +33,18 @@ export function BreadcrumbBar({ section }: BreadcrumbBarProps) {
   const activeAgents = agents?.filter((a) => a.status === "active") ?? [];
   const runningTask = agents?.find((a) => a.status === "active")?.currentTask;
 
+  const sectionInfo = sectionLabels[section];
+  const SectionIcon = sectionInfo?.icon ?? LayoutDashboard;
+
   return (
     <div className="h-12 px-6 flex items-center justify-between shrink-0 border-b border-border bg-card/50 backdrop-blur-sm">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-sm">
         <span className="text-muted-foreground text-xs font-medium">Interstice</span>
         <ChevronRight className="w-3 h-3 text-muted-foreground/50" />
-        <span className="text-foreground font-semibold text-xs tracking-wide uppercase">
-          {sectionLabels[section] ?? section}
+        <span className="text-foreground font-semibold text-xs tracking-wide uppercase flex items-center gap-1.5">
+          <SectionIcon className="w-3.5 h-3.5" />
+          {sectionInfo?.label ?? section}
         </span>
       </div>
 
