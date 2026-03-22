@@ -18,8 +18,8 @@ let activeProcessCount = 0;
 
 // Agents that produce data others depend on — must finish first
 const DATA_PRODUCER_AGENTS = ["research"];
-// Agents that consume data from producers — must wait
-const DATA_CONSUMER_AGENTS = ["comms", "developer"];
+// Agents that consume data from producers — must wait for research before starting
+const DATA_CONSUMER_AGENTS = ["comms", "developer", "call"];
 // Agents whose output requires human approval before action
 const APPROVAL_AGENTS = ["comms", "call"];
 
@@ -307,16 +307,22 @@ async function runAgentTask(
 
     // === CEO HANDLING ===
     if (agent.name === "ceo") {
-      const wasDelegation = await handleCeoDelegation(
-        client,
-        agent,
-        task,
-        result.output,
-        allAgents
-      );
+      // Check for direct response first (CEO responding without delegation)
+      const directResponse = extractCeoDirectResponse(result.output);
+      if (directResponse) {
+        await handleCeoSynthesis(client, agent, task, directResponse);
+      } else {
+        const wasDelegation = await handleCeoDelegation(
+          client,
+          agent,
+          task,
+          result.output,
+          allAgents
+        );
 
-      if (!wasDelegation && result.output) {
-        await handleCeoSynthesis(client, agent, task, result.output);
+        if (!wasDelegation && result.output) {
+          await handleCeoSynthesis(client, agent, task, result.output);
+        }
       }
     }
 
@@ -560,6 +566,31 @@ async function buildPrompt(
   }
 
   return parts.join("\n\n---\n\n");
+}
+
+/**
+ * Extract a direct response from CEO output.
+ * If the CEO outputs {"response":"..."} instead of {"tasks":[...]},
+ * it means the input was conversational and doesn't need delegation.
+ * Returns the response string, or null if this isn't a direct response.
+ */
+function extractCeoDirectResponse(output: string): string | null {
+  try {
+    const jsonMatch = output.match(/\{[\s\S]*"response"[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (typeof parsed.response === "string" && parsed.response.trim()) {
+      // Make sure it's not also a delegation (has tasks array)
+      if (parsed.tasks && Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
+        return null; // It's a delegation, not a direct response
+      }
+      return parsed.response;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
