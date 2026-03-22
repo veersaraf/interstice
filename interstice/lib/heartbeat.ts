@@ -3,6 +3,8 @@ import { api } from "../convex/_generated/api";
 import { runAgent } from "./claude-runner";
 import { runAgentUnified, type AdapterType } from "./agent-runner";
 import { sendOmiNotification, extractOmiUid } from "./omi";
+import { makeCall, parsePhoneNumber } from "../skills/make_call";
+import { sendEmail } from "../skills/send_email";
 import path from "path";
 import fs from "fs";
 import { Id } from "../convex/_generated/dataModel";
@@ -470,39 +472,54 @@ async function runAgentTask(
       }
     }
 
-    // In DEMO_MODE, auto-execute actions that would normally need approval
+    // In DEMO_MODE, directly execute actions that would normally need approval
+    // No approval records created, no API calls — just run the action inline
     if (DEMO_MODE && APPROVAL_AGENTS.includes(agent.name) && finalOutput) {
       const needsApproval = detectApprovalNeeded(agent, task, finalOutput);
       if (needsApproval) {
-        console.log(`[heartbeat] DEMO_MODE: auto-executing ${needsApproval.action} (skipping approval gate)`);
+        console.log(`[heartbeat] DEMO_MODE: directly executing ${needsApproval.action} (no approval)`);
+
+        let actionResult = `Action logged: ${needsApproval.action}`;
+        try {
+          const actionLower = needsApproval.action.toLowerCase();
+
+          if (actionLower.includes("call") || actionLower.includes("phone")) {
+            const phoneNumber = parsePhoneNumber(needsApproval.details);
+            if (phoneNumber) {
+              const result = await makeCall(phoneNumber, needsApproval.details);
+              actionResult = result.message;
+            } else {
+              actionResult = "Could not parse phone number from details.";
+            }
+          } else if (actionLower.includes("email") || actionLower.includes("send")) {
+            const parsed = parseDemoEmailDetails(needsApproval.details);
+            if (parsed) {
+              const result = await sendEmail(parsed.to, parsed.subject, parsed.body);
+              actionResult = result.message;
+            } else {
+              actionResult = "Could not parse email fields from details.";
+            }
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          actionResult = `Action failed: ${errMsg}`;
+          console.error("[heartbeat] DEMO_MODE action execution failed:", err);
+        }
+
         await client.mutation(api.activity.log, {
           agentId: agent._id,
-          action: "demo_auto_approve",
-          content: `🚀 DEMO MODE: Auto-approved ${needsApproval.action}`,
+          action: "demo_auto_execute",
+          content: `🚀 DEMO MODE: ${needsApproval.action} — ${actionResult}`,
           taskId: task._id,
         });
 
-        // Auto-execute the action via the approve endpoint
-        try {
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-          // Create approval record as "approved" directly
-          const approvalId = await client.mutation(api.approvals.create, {
-            taskId: task._id,
-            agentId: agent._id,
-            action: needsApproval.action,
-            details: needsApproval.details,
-          });
-
-          // Fire the approve endpoint to execute the action
-          await fetch(`${baseUrl}/api/approve`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ approvalId, decision: "approve" }),
-          });
-        } catch (err) {
-          console.error("[heartbeat] DEMO_MODE auto-execute failed:", err);
-        }
+        // Post finding so CEO sees the outcome
+        await client.mutation(api.findings.post, {
+          agentId: agent._id,
+          taskId: task._id,
+          content: `[AUTO-EXECUTED] ${needsApproval.action}: ${actionResult}\n\n${needsApproval.details.substring(0, 400)}`,
+          summary: `Auto-executed: ${needsApproval.action}`,
+        });
       }
     }
 
@@ -1014,6 +1031,27 @@ function detectApprovalNeeded(
   }
 
   return null;
+}
+
+/**
+ * Parse email fields from approval details (for DEMO_MODE direct execution).
+ * Same format as the approve endpoint parser.
+ */
+function parseDemoEmailDetails(
+  details: string
+): { to: string; subject: string; body: string } | null {
+  const toMatch = details.match(/^To:\s*(.+)/m);
+  const subjectMatch = details.match(/^Subject:\s*(.+)/m);
+  if (!toMatch || !subjectMatch) return null;
+
+  const subjectIdx = details.indexOf(subjectMatch[0]);
+  const afterSubject = details.slice(subjectIdx + subjectMatch[0].length).replace(/^\n\n/, "");
+
+  return {
+    to: toMatch[1].trim(),
+    subject: subjectMatch[1].trim(),
+    body: afterSubject.trim(),
+  };
 }
 
 /**
