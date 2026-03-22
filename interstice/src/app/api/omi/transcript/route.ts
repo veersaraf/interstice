@@ -166,12 +166,33 @@ export async function POST(req: NextRequest) {
 
   let segments: TranscriptSegment[];
   try {
-    segments = await req.json();
-    if (!Array.isArray(segments)) {
-      return NextResponse.json({ error: "Expected array of segments" }, { status: 400 });
+    const body = await req.json();
+
+    // OMI sends different payload formats depending on the event type:
+    // - Realtime transcript: array of segments directly
+    // - Memory/processed: { "segments": [...] } or { "transcript_segments": [...] }
+    // - Memory created: { "text": "...", "structured": {...} }
+    if (Array.isArray(body)) {
+      segments = body;
+    } else if (body && typeof body === "object") {
+      if (Array.isArray(body.segments)) {
+        segments = body.segments;
+      } else if (Array.isArray(body.transcript_segments)) {
+        segments = body.transcript_segments;
+      } else if (typeof body.text === "string" && body.text.trim()) {
+        // Memory/processed event — treat the text as a single segment
+        segments = [{ text: body.text, is_user: true }];
+      } else {
+        // Unknown object format — log it for debugging and accept gracefully
+        console.log(`[OMI] Unknown payload format:`, JSON.stringify(body).substring(0, 500));
+        return NextResponse.json({ status: "unknown_format", received: Object.keys(body) });
+      }
+    } else {
+      return NextResponse.json({ status: "empty_payload" });
     }
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    // Body might be empty or not JSON — OMI sometimes sends empty pings
+    return NextResponse.json({ status: "no_body" });
   }
 
   // Extract user speech from segments
