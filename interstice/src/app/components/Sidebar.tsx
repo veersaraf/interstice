@@ -157,7 +157,7 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
                         />
                         <span className="truncate">{label}</span>
                         {badge && (
-                          <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 tabular-nums">
+                          <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 tabular-nums">
                             {badge.value}
                           </span>
                         )}

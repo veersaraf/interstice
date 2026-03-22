@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, createContext, useContext } from "react";
 import { Sidebar } from "./Sidebar";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { ContactsPage } from "./ContactsPage";
@@ -11,6 +11,12 @@ import { ActivityPage } from "./ActivityPage";
 import { ApprovalsPage } from "./ApprovalsPage";
 import { MessagesPage } from "./MessagesPage";
 import { FindingsPage } from "./FindingsPage";
+
+/* ─── Navigation context so children can navigate ─── */
+const NavigationContext = createContext<(section: string) => void>(() => {});
+export function useNavigate() {
+  return useContext(NavigationContext);
+}
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -43,14 +49,16 @@ export function AppShell({ children }: AppShellProps) {
   })();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar activeSection={activeSection} onNavigate={setActiveSection} />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <BreadcrumbBar section={activeSection} />
-        <main className="flex-1 overflow-auto p-6">
-          {pageContent}
-        </main>
+    <NavigationContext.Provider value={setActiveSection}>
+      <div className="flex h-screen overflow-hidden bg-background">
+        <Sidebar activeSection={activeSection} onNavigate={setActiveSection} />
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <BreadcrumbBar section={activeSection} />
+          <main className="flex-1 overflow-auto p-6">
+            {pageContent}
+          </main>
+        </div>
       </div>
-    </div>
+    </NavigationContext.Provider>
   );
 }

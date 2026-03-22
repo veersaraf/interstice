@@ -75,8 +75,8 @@ function AdapterSelector({ agentId, currentAdapter, currentModel }: {
                   "px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all border",
                   adapter === a
                     ? a === "claude"
-                      ? "bg-orange-500/15 text-orange-400 border-orange-500/25"
-                      : "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
+                      ? "bg-orange-50 text-orange-700 border-orange-200"
+                      : "bg-green-50 text-green-700 border-green-200"
                     : "text-muted-foreground hover:text-foreground border-transparent"
                 )}
               >
@@ -174,7 +174,7 @@ export function AgentsPage() {
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   {activeTasks > 0 && (
                     <span className="flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-blue-400" />
+                      <Zap className="w-3 h-3 text-blue-600" />
                       {activeTasks}
                     </span>
                   )}
@@ -207,8 +207,8 @@ export function AgentsPage() {
               {/* Error state */}
               {isError && (
                 <div className="px-4 py-2.5 flex items-center gap-2 border-t border-border">
-                  <AlertCircle className="w-3.5 h-3.5 text-red-400" />
-                  <span className="text-xs text-red-400">Agent in error state</span>
+                  <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                  <span className="text-xs text-red-600">Agent in error state</span>
                 </div>
               )}
 
@@ -224,12 +224,12 @@ export function AgentsPage() {
               {/* Status bar */}
               <div className="px-4 py-2 flex items-center justify-between border-t border-border bg-muted/30">
                 <span className={cn("text-[10px] font-medium",
-                  isActive ? "text-emerald-400" : isError ? "text-red-400" : "text-muted-foreground"
+                  isActive ? "text-green-600" : isError ? "text-red-600" : "text-muted-foreground"
                 )}>
                   {isActive ? "Active" : isError ? "Error" : "Idle"}
                 </span>
                 {isActive && (
-                  <span className="flex items-center gap-1 text-[10px] text-blue-400">
+                  <span className="flex items-center gap-1 text-[10px] text-blue-600">
                     <Clock className="w-3 h-3" />
                     Running
                   </span>

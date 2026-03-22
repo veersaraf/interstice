@@ -88,7 +88,7 @@ export function TaskBoard() {
                     <p className="text-xs font-medium text-foreground line-clamp-2 leading-relaxed">{displayInput}</p>
                     <div className="flex items-center gap-2 mt-1.5">
                       {agent && (
-                        <span className={cn("text-[10px] font-bold", roleColors[agent.role] ?? "text-zinc-400")}>
+                        <span className={cn("text-[10px] font-bold", roleColors[agent.role] ?? "text-stone-500")}>
                           {agent.role}
                         </span>
                       )}
@@ -122,7 +122,7 @@ export function TaskBoard() {
                           "text-red-600": child.status === "cancelled",
                         })} />
                         {childAgent && (
-                          <span className={cn("text-[10px] font-bold shrink-0", roleColors[childAgent.role] ?? "text-zinc-400")}>
+                          <span className={cn("text-[10px] font-bold shrink-0", roleColors[childAgent.role] ?? "text-stone-500")}>
                             {childAgent.role}
                           </span>
                         )}

@@ -71,11 +71,11 @@ export function MessagesPage() {
                   onClick={() => isLong && toggleExpand(msg._id)}
                 >
                   <div className="flex items-center gap-3 mb-1.5">
-                    <span className={cn("text-xs font-bold", roleColors[from?.role ?? ""] ?? "text-zinc-400")}>
+                    <span className={cn("text-xs font-bold", roleColors[from?.role ?? ""] ?? "text-stone-500")}>
                       {from?.role ?? "Unknown"}
                     </span>
                     <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/40" />
-                    <span className={cn("text-xs font-bold", roleColors[to?.role ?? ""] ?? "text-zinc-400")}>
+                    <span className={cn("text-xs font-bold", roleColors[to?.role ?? ""] ?? "text-stone-500")}>
                       {to?.role ?? "Unknown"}
                     </span>
                     {msg.channel && (

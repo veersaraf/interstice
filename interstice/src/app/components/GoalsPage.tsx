@@ -23,9 +23,9 @@ type Goal = {
 type GoalStatus = Goal["status"];
 
 const statusConfig: Record<GoalStatus, { label: string; icon: typeof Circle; color: string; variant: "success" | "info" | "warning" }> = {
-  active:    { label: "Active",    icon: Circle,       color: "text-emerald-400", variant: "success" },
-  completed: { label: "Completed", icon: CheckCircle2, color: "text-blue-400",    variant: "info"    },
-  paused:    { label: "Paused",    icon: PauseCircle,  color: "text-yellow-400",  variant: "warning" },
+  active:    { label: "Active",    icon: Circle,       color: "text-green-600",  variant: "success" },
+  completed: { label: "Completed", icon: CheckCircle2, color: "text-blue-600",   variant: "info"    },
+  paused:    { label: "Paused",    icon: PauseCircle,  color: "text-amber-600",  variant: "warning" },
 };
 
 const tabs: { id: "all" | GoalStatus; label: string }[] = [
@@ -215,8 +215,8 @@ export function GoalsPage() {
           <div className="p-8 text-center text-xs text-muted-foreground">Loading...</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-purple-500/10 border border-purple-500/20">
-              <Target className="w-6 h-6 text-purple-400" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-purple-50 border border-purple-200">
+              <Target className="w-6 h-6 text-purple-600" />
             </div>
             <p className="text-sm font-medium text-foreground mb-1">
               {filter === "all" ? "No goals yet" : `No ${filter} goals`}
@@ -265,13 +265,13 @@ export function GoalsPage() {
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => setEditing(goal)}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDelete(goal._id)}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

@@ -12,11 +12,11 @@ import {
 } from "../../components/ui/tooltip";
 
 const roleConfig: Record<string, { initials: string; color: string; dimBg: string; ring: string }> = {
-  CEO:            { initials: "CEO", color: "text-amber-700",   dimBg: "bg-amber-500/10",   ring: "ring-amber-400/40" },
-  Research:       { initials: "RES", color: "text-blue-700",    dimBg: "bg-blue-500/10",    ring: "ring-blue-400/40" },
-  Communications: { initials: "COM", color: "text-purple-700",  dimBg: "bg-purple-500/10",  ring: "ring-purple-400/40" },
-  Developer:      { initials: "DEV", color: "text-emerald-700", dimBg: "bg-emerald-500/10", ring: "ring-emerald-400/40" },
-  Call:           { initials: "CAL", color: "text-orange-700",  dimBg: "bg-orange-500/10",  ring: "ring-orange-400/40" },
+  CEO:            { initials: "CEO", color: "text-amber-700",   dimBg: "bg-amber-50",   ring: "ring-amber-300" },
+  Research:       { initials: "RES", color: "text-blue-700",    dimBg: "bg-blue-50",    ring: "ring-blue-300" },
+  Communications: { initials: "COM", color: "text-purple-700",  dimBg: "bg-purple-50",  ring: "ring-purple-300" },
+  Developer:      { initials: "DEV", color: "text-emerald-700", dimBg: "bg-emerald-50", ring: "ring-emerald-300" },
+  Call:           { initials: "CAL", color: "text-orange-700",  dimBg: "bg-orange-50",  ring: "ring-orange-300" },
 };
 
 export function OrgChart() {
@@ -70,7 +70,7 @@ function AgentNode({
   agent: { _id: string; name: string; role: string; title: string; status: string; currentTask?: string };
   size: "lg" | "sm";
 }) {
-  const cfg = roleConfig[agent.role] ?? { initials: "??", color: "text-zinc-400", dimBg: "bg-zinc-500/10", ring: "ring-zinc-400/40" };
+  const cfg = roleConfig[agent.role] ?? { initials: "??", color: "text-stone-500", dimBg: "bg-stone-50", ring: "ring-stone-300" };
   const isActive = agent.status === "active";
   const isError = agent.status === "error";
 
@@ -128,8 +128,8 @@ function AgentNode({
 
           {isError && (
             <div className="flex items-center gap-1 mt-1">
-              <AlertCircle className="w-3 h-3 text-red-400" />
-              <p className="text-[10px] text-red-400 font-medium">error state</p>
+              <AlertCircle className="w-3 h-3 text-red-600" />
+              <p className="text-[10px] text-red-600 font-medium">error state</p>
             </div>
           )}
         </div>

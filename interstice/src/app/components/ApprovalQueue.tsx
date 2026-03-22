@@ -61,7 +61,7 @@ export function ApprovalQueue() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 {agent && (
-                  <span className={cn("text-xs font-bold", roleColors[agent.role] ?? "text-zinc-400")}>
+                  <span className={cn("text-xs font-bold", roleColors[agent.role] ?? "text-stone-500")}>
                     {agent.role}
                   </span>
                 )}

@@ -141,17 +141,17 @@ export function TasksPage() {
                   onClick={() => toggleExpand(task._id)}
                 >
                   <StatusIcon className={cn("w-4 h-4 shrink-0 mt-0.5", {
-                    "text-zinc-400": task.status === "pending",
-                    "text-blue-400": task.status === "in_progress",
-                    "text-yellow-400": task.status === "pending_approval",
-                    "text-emerald-400": task.status === "done",
-                    "text-red-400": task.status === "cancelled",
+                    "text-stone-400": task.status === "pending",
+                    "text-blue-600": task.status === "in_progress",
+                    "text-amber-600": task.status === "pending_approval",
+                    "text-green-600": task.status === "done",
+                    "text-red-600": task.status === "cancelled",
                   })} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground line-clamp-2">{displayInput}</p>
                     <div className="flex items-center gap-3 mt-1.5">
                       {agent && (
-                        <span className={cn("text-[11px] font-bold", roleColors[agent.role] ?? "text-zinc-400")}>
+                        <span className={cn("text-[11px] font-bold", roleColors[agent.role] ?? "text-stone-500")}>
                           {agent.role}
                         </span>
                       )}
@@ -196,14 +196,14 @@ export function TasksPage() {
                           >
                             <span className="text-muted-foreground/30 text-[10px] shrink-0 pl-2">└</span>
                             <ChildIcon className={cn("w-3.5 h-3.5 shrink-0", {
-                              "text-zinc-400": child.status === "pending",
-                              "text-blue-400": child.status === "in_progress",
-                              "text-yellow-400": child.status === "pending_approval",
-                              "text-emerald-400": child.status === "done",
-                              "text-red-400": child.status === "cancelled",
+                              "text-stone-400": child.status === "pending",
+                              "text-blue-600": child.status === "in_progress",
+                              "text-amber-600": child.status === "pending_approval",
+                              "text-green-600": child.status === "done",
+                              "text-red-600": child.status === "cancelled",
                             })} />
                             {childAgent && (
-                              <span className={cn("text-[11px] font-bold shrink-0", roleColors[childAgent.role] ?? "text-zinc-400")}>
+                              <span className={cn("text-[11px] font-bold shrink-0", roleColors[childAgent.role] ?? "text-stone-500")}>
                                 {childAgent.role}
                               </span>
                             )}

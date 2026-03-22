@@ -126,7 +126,7 @@ export function ApprovalsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       {agent && (
-                        <span className={cn("text-xs font-bold", roleColors[agent.role] ?? "text-zinc-400")}>
+                        <span className={cn("text-xs font-bold", roleColors[agent.role] ?? "text-stone-500")}>
                           {agent.role}
                         </span>
                       )}
@@ -150,7 +150,7 @@ export function ApprovalsPage() {
                         size="sm"
                         onClick={() => resolve(approval._id, "approve")}
                         disabled={busy}
-                        className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25"
+                        className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
                       >
                         <Check className="w-3 h-3" />
                         {busy ? "..." : "Approve"}
@@ -160,7 +160,7 @@ export function ApprovalsPage() {
                         variant="outline"
                         onClick={() => resolve(approval._id, "deny")}
                         disabled={busy}
-                        className="bg-red-500/10 text-red-400 border-red-500/25 hover:bg-red-500/20"
+                        className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
                       >
                         <X className="w-3 h-3" />
                         {busy ? "..." : "Deny"}

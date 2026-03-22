@@ -2,41 +2,57 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { ShieldCheck, Users, ListChecks, FileText, Clock } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { ApprovalQueue } from "./components/ApprovalQueue";
 import { CommandInput } from "./components/CommandInput";
 import { GameWorld } from "./components/GameWorld";
 import { GameActivityLog } from "./components/GameActivityLog";
 import { Card } from "../components/ui/card";
 import { cn } from "../lib/utils";
+import { useNavigate } from "./components/AppShell";
 
-/* ─── Metric Card ────────────────────────────────────────────────── */
+/* ─── Metric Card (retro style with emoji) ───────────────────── */
 function MetricCard({
   label,
   value,
-  icon: Icon,
+  emoji,
   accent,
+  pulse,
+  onClick,
 }: {
   label: string;
   value: number;
-  icon: React.ComponentType<{ className?: string }>;
+  emoji: string;
   accent: string;
+  pulse?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-stone-200/80 shadow-sm btn-retro">
-      <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0", accent)}>
-        <Icon className="w-4 h-4" />
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border shadow-sm btn-retro text-left transition-all",
+        "hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm",
+        accent,
+      )}
+    >
+      <div className="relative">
+        <span className="text-2xl">{emoji}</span>
+        {pulse && value > 0 && (
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
+        )}
       </div>
       <div className="min-w-0">
-        <p className="text-lg font-bold text-foreground leading-none tabular-nums">{value}</p>
+        <p className="text-xl font-bold text-foreground leading-none tabular-nums">{value}</p>
         <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{label}</p>
       </div>
-    </div>
+    </button>
   );
 }
 
-/* ─── Dashboard ──────────────────────────────────────────────────── */
+/* ─── Dashboard ──────────────────────────────────────────────── */
 export default function Dashboard() {
+  const navigate = useNavigate();
   const approvals = useQuery(api.approvals.listPending);
   const agents = useQuery(api.agents.list);
   const tasks = useQuery(api.tasks.list);
@@ -51,12 +67,15 @@ export default function Dashboard() {
     <div className="h-full flex flex-col gap-3 max-w-[1800px]">
       {/* Approval Banner */}
       {pendingApprovals > 0 && (
-        <div className="rounded-2xl px-4 py-2.5 flex items-center gap-2.5 bg-amber-50 border border-amber-200/60 shrink-0">
-          <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+        <button
+          onClick={() => navigate("approvals")}
+          className="rounded-2xl px-4 py-2.5 flex items-center gap-2.5 bg-amber-50 border border-amber-200/60 shrink-0 w-full text-left hover:bg-amber-100/60 transition-colors cursor-pointer"
+        >
+          <span className="text-lg">⚠️</span>
           <p className="text-sm text-amber-800 font-medium">
             {pendingApprovals} action{pendingApprovals > 1 ? "s" : ""} awaiting your approval
           </p>
-        </div>
+        </button>
       )}
 
       {pendingApprovals > 0 && (
@@ -67,13 +86,38 @@ export default function Dashboard() {
 
       {/* Metrics row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 shrink-0">
-        <MetricCard label="Active Agents" value={activeAgents} icon={Users} accent="bg-green-50 text-green-600" />
-        <MetricCard label="Tasks Running" value={inProgressTasks} icon={Clock} accent="bg-blue-50 text-blue-600" />
-        <MetricCard label="Pending Approvals" value={pendingApprovals} icon={ShieldCheck} accent="bg-amber-50 text-amber-600" />
-        <MetricCard label="Results" value={totalFindings} icon={FileText} accent="bg-cyan-50 text-cyan-600" />
+        <MetricCard
+          label="Active Agents"
+          value={activeAgents}
+          emoji="🧑‍💼"
+          accent="border-green-200/60"
+          pulse={true}
+          onClick={() => navigate("agents")}
+        />
+        <MetricCard
+          label="Tasks Running"
+          value={inProgressTasks}
+          emoji="⚡"
+          accent="border-blue-200/60"
+          onClick={() => navigate("tasks")}
+        />
+        <MetricCard
+          label="Needs Your OK"
+          value={pendingApprovals}
+          emoji="🛡️"
+          accent={pendingApprovals > 0 ? "border-amber-300 bg-amber-50/50" : "border-amber-200/60"}
+          onClick={() => navigate("approvals")}
+        />
+        <MetricCard
+          label="Results"
+          value={totalFindings}
+          emoji="📊"
+          accent="border-cyan-200/60"
+          onClick={() => navigate("findings")}
+        />
       </div>
 
-      {/* Main Layout: Operations View (left) + Activity Log (right) */}
+      {/* Main Layout: Operations View (left) + Chat Log (right) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3">
         <div className="lg:col-span-7 xl:col-span-8 min-h-[400px]">
           <GameWorld />
@@ -84,7 +128,7 @@ export default function Dashboard() {
       </div>
 
       {/* Command Input */}
-      <Card className="p-3 shrink-0">
+      <Card className="p-3 shrink-0 rounded-2xl">
         <CommandInput />
       </Card>
     </div>

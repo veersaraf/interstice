@@ -16,11 +16,11 @@ const roleColors: Record<string, string> = {
 };
 
 const roleDimBg: Record<string, string> = {
-  CEO:            "bg-amber-500/[0.06]",
-  Research:       "bg-blue-500/[0.06]",
-  Communications: "bg-purple-500/[0.06]",
-  Developer:      "bg-emerald-500/[0.06]",
-  Call:           "bg-orange-500/[0.06]",
+  CEO:            "bg-amber-50",
+  Research:       "bg-blue-50",
+  Communications: "bg-purple-50",
+  Developer:      "bg-emerald-50",
+  Call:           "bg-orange-50",
 };
 
 export function FindingsPage() {
@@ -69,8 +69,8 @@ export function FindingsPage() {
 
       {findings.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-cyan-500/10 border border-cyan-500/20">
-            <FileText className="w-6 h-6 text-cyan-400" />
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-cyan-50 border border-cyan-200">
+            <FileText className="w-6 h-6 text-cyan-600" />
           </div>
           <p className="text-sm font-medium text-foreground mb-1">No findings yet</p>
           <p className="text-xs text-muted-foreground">
@@ -95,12 +95,12 @@ export function FindingsPage() {
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "w-7 h-7 rounded-md flex items-center justify-center shrink-0",
-                      roleDimBg[agent?.role ?? ""] ?? "bg-zinc-500/[0.06]"
+                      roleDimBg[agent?.role ?? ""] ?? "bg-stone-50"
                     )}>
-                      <FileText className={cn("w-3.5 h-3.5", roleColors[agent?.role ?? ""] ?? "text-zinc-400")} />
+                      <FileText className={cn("w-3.5 h-3.5", roleColors[agent?.role ?? ""] ?? "text-stone-500")} />
                     </div>
                     <div>
-                      <span className={cn("text-xs font-bold", roleColors[agent?.role ?? ""] ?? "text-zinc-400")}>
+                      <span className={cn("text-xs font-bold", roleColors[agent?.role ?? ""] ?? "text-stone-500")}>
                         {agent?.role ?? "Agent"}
                       </span>
                       {finding.summary && (
@@ -115,7 +115,7 @@ export function FindingsPage() {
                       className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                       title="Copy to clipboard"
                     >
-                      {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {isCopied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                     <ChevronDown className={cn("w-4 h-4 text-muted-foreground/60 transition-transform", isExpanded && "rotate-180")} />
                   </div>
