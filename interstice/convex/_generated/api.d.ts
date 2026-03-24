@@ -18,6 +18,7 @@ import type * as heartbeats from "../heartbeats.js";
 import type * as messages from "../messages.js";
 import type * as omi_sessions from "../omi_sessions.js";
 import type * as sessions from "../sessions.js";
+import type * as storage from "../storage.js";
 import type * as tasks from "../tasks.js";
 
 import type {
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   omi_sessions: typeof omi_sessions;
   sessions: typeof sessions;
+  storage: typeof storage;
   tasks: typeof tasks;
 }>;
 

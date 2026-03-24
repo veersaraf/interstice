@@ -178,7 +178,7 @@ export function GoalsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <Target className="w-4 h-4 text-muted-foreground" />
+          <Target className="w-5 h-5 text-primary" />
           <h1 className="text-sm font-semibold text-foreground">Goals</h1>
         </div>
         <Button size="sm" onClick={() => setShowForm(true)}>

@@ -48,10 +48,11 @@ export interface AgentRunResult {
  * Returns a unified result regardless of backend.
  */
 export async function runAgentUnified(opts: AgentRunOptions): Promise<AgentRunResult> {
-  if (opts.adapter === "codex") {
-    return runWithCodex(opts);
+  // Default to Codex — only use Claude if explicitly requested
+  if (opts.adapter === "claude") {
+    return runWithClaude(opts);
   }
-  return runWithClaude(opts);
+  return runWithCodex(opts);
 }
 
 async function runWithClaude(opts: AgentRunOptions): Promise<AgentRunResult> {

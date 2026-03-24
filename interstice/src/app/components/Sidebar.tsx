@@ -24,10 +24,6 @@ import {
 } from "../../components/ui/tooltip";
 import type { LucideIcon } from "lucide-react";
 
-const agentAvatar: Record<string, string> = {
-  CEO: "/avatars/ceo.png", Research: "/avatars/research.png", Communications: "/avatars/communications.png", Developer: "/avatars/developer.png", Call: "/avatars/call.png",
-};
-
 const navSections: { label: string | null; items: { id: string; label: string; icon: LucideIcon; hasSubmenu?: boolean }[] }[] = [
   {
     label: "Overview",
@@ -74,18 +70,12 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside className="w-60 h-full flex flex-col shrink-0 bg-sidebar border-r border-sidebar-border">
         {/* Brand */}
-        <div className="h-14 px-4 flex items-center gap-3 shrink-0 border-b border-sidebar-border">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/25">
-            <Zap className="w-4 h-4 text-white" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-bold text-foreground tracking-tight leading-none">
-              Interstice
-            </span>
-            <span className="text-[10px] text-muted-foreground leading-none mt-0.5">
-              Agent Orchestration
-            </span>
-          </div>
+        <div className="h-14 px-4 flex items-center shrink-0 border-b border-sidebar-border">
+          <img
+            src="/avatars/intersticelogo.jpg"
+            alt="Interstice"
+            className="h-8 w-auto object-contain rounded-lg"
+          />
           {activeAgents.length > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -156,62 +146,20 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
         {/* Settings */}
         <div className="px-3 py-2 shrink-0">
           <button
-            onClick={() => {}}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent transition-all text-left group"
+            onClick={() => onNavigate("settings")}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all text-left group",
+              activeSection === "settings"
+                ? "bg-primary/10 text-primary"
+                : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent"
+            )}
           >
-            <Settings className="w-[18px] h-[18px] shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+            <Settings className={cn(
+              "w-[18px] h-[18px] shrink-0 transition-colors",
+              activeSection === "settings" ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+            )} />
             <span>Settings</span>
           </button>
-        </div>
-
-        <Separator className="bg-sidebar-border" />
-
-        {/* Agents status footer */}
-        <div className="px-3 py-3 shrink-0">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 px-0.5 flex items-center gap-1.5">
-            <Users className="w-3 h-3" />
-            Your Team
-          </p>
-          <div className="space-y-1">
-            {agents?.slice(0, 5).map((agent) => (
-              <button
-                key={agent._id}
-                onClick={() => onNavigate("agents")}
-                className="w-full flex items-center gap-2.5 px-1.5 py-1 rounded-md hover:bg-sidebar-accent transition-colors group"
-              >
-                <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 bg-muted flex items-center justify-center">
-                  {agentAvatar[agent.role] ? (
-                    <img src={agentAvatar[agent.role]} alt={agent.role} className="w-full h-full object-cover" />
-                  ) : (
-                    <Users className="w-3 h-3 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="relative shrink-0">
-                  <div
-                    className={cn(
-                      "w-2.5 h-2.5 rounded-full transition-shadow",
-                      agent.status === "active"
-                        ? "bg-green-500 shadow-[0_0_6px_rgba(22,163,74,0.4)]"
-                        : agent.status === "error"
-                          ? "bg-red-500 shadow-[0_0_6px_rgba(220,38,38,0.3)]"
-                          : "bg-stone-400 border border-stone-500/30"
-                    )}
-                  />
-                  {agent.status === "active" && (
-                    <div className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-30" />
-                  )}
-                </div>
-                <span className="text-[11px] text-muted-foreground group-hover:text-foreground truncate flex-1 text-left capitalize">
-                  {agent.role}
-                </span>
-                {agent.status === "active" && (
-                  <span className="text-[9px] text-green-600 font-bold tracking-wide">
-                    LIVE
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Footer */}

@@ -455,7 +455,7 @@ function TaskRow({ task, agent, childCount, isSelected, onSelect, isChild, isLas
             rc?.text ?? "text-stone-600"
           )}
         >
-          <img src={roleAvatar[role] ?? ""} alt={role} className="w-4 h-4 rounded-full object-cover" />
+          <img src={roleAvatar[role] ?? ""} alt={role} className="w-6 h-6 rounded-full object-cover" />
           {role}
         </span>
       )}
@@ -994,7 +994,7 @@ function SubtasksSection({
                     "shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold",
                     childRc?.bg ?? "bg-stone-50", childRc?.text ?? "text-stone-600"
                   )}>
-                    <img src={roleAvatar[childRole] ?? ""} alt={childRole} className="w-3 h-3 rounded-full object-cover" />
+                    <img src={roleAvatar[childRole] ?? ""} alt={childRole} className="w-4 h-4 rounded-full object-cover" />
                     {childRole}
                   </span>
                 )}

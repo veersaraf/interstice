@@ -17,6 +17,10 @@ const roleColors: Record<string, string> = {
   Call:           "text-orange-700",
 };
 
+const roleAvatar: Record<string, string> = {
+  CEO: "/avatars/ceo.png", Research: "/avatars/research.png", Communications: "/avatars/communications.png", Developer: "/avatars/developer.png", Call: "/avatars/call.png",
+};
+
 export function ApprovalsPage() {
   const pending = useQuery(api.approvals.listPending);
   const all = useQuery(api.approvals.list);
@@ -56,7 +60,7 @@ export function ApprovalsPage() {
     <div className="max-w-[1000px] space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2.5">
-        <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+        <ShieldCheck className="w-5 h-5 text-amber-600" />
         <h1 className="text-sm font-semibold text-foreground">Approvals</h1>
         {(pending?.length ?? 0) > 0 && (
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
@@ -118,15 +122,14 @@ export function ApprovalsPage() {
                       isPending ? "bg-amber-100" : isApproved ? "bg-green-100" : "bg-red-100"
                     )}
                   >
-                    {isPending ? <Clock className="w-4 h-4 text-amber-600" />
-                    : isApproved ? <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    : <XCircle className="w-4 h-4 text-red-600" />}
+                    {isPending ? <Clock className="w-4 h-4 text-amber-600" /> : isApproved ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <XCircle className="w-4 h-4 text-red-600" />}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       {agent && (
-                        <span className={cn("text-xs font-bold", roleColors[agent.role] ?? "text-stone-500")}>
+                        <span className={cn("text-xs font-bold flex items-center gap-1.5", roleColors[agent.role] ?? "text-stone-500")}>
+                          <img src={roleAvatar[agent.role] ?? ""} alt={agent.role} className="w-7 h-7 rounded-full object-cover" />
                           {agent.role}
                         </span>
                       )}
@@ -150,9 +153,9 @@ export function ApprovalsPage() {
                         size="sm"
                         onClick={() => resolve(approval._id, "approve")}
                         disabled={busy}
-                        className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100"
+                        className="bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 rounded-xl"
                       >
-                        <Check className="w-3 h-3" />
+                        <Check className="w-3.5 h-3.5" />
                         {busy ? "..." : "Approve"}
                       </Button>
                       <Button
@@ -160,9 +163,9 @@ export function ApprovalsPage() {
                         variant="outline"
                         onClick={() => resolve(approval._id, "deny")}
                         disabled={busy}
-                        className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                        className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100 rounded-xl"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                         {busy ? "..." : "Deny"}
                       </Button>
                     </div>

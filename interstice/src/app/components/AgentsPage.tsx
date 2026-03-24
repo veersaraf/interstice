@@ -25,7 +25,8 @@ const claudeModels = [
 ];
 
 const codexModels = [
-  { id: "", label: "Default" },
+  { id: "", label: "Default (GPT-5.3 Codex)" },
+  { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
   { id: "o3", label: "o3" },
   { id: "o4-mini", label: "o4-mini" },
   { id: "gpt-5-mini", label: "GPT-5 Mini" },

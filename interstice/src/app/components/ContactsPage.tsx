@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Users, Plus, Phone, Mail, Building2, Pencil, Trash2, X, User } from "lucide-react";
+import { Users, Plus, Phone, Mail, Building2, Pencil, Trash2, X, User, Contact2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Card } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -136,7 +136,7 @@ export function ContactsPage() {
     <div className="max-w-[1000px] space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <Users className="w-4 h-4 text-muted-foreground" />
+          <Contact2 className="w-5 h-5 text-primary" />
           <h1 className="text-sm font-semibold text-foreground">Contacts</h1>
           {contacts && (
             <span className="text-[11px] text-muted-foreground font-medium">{contacts.length} total</span>
@@ -167,7 +167,7 @@ export function ContactsPage() {
                 className="flex items-center gap-4 px-4 py-3 hover:bg-accent/20 transition-colors group"
               >
                 <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 border border-primary/15">
-                  <User className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-sm">👤</span>
                 </div>
 
                 <div className="flex-1 min-w-0">

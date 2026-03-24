@@ -11,6 +11,7 @@ import {
   Users,
   Brain,
   Contact2,
+  Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -22,6 +23,7 @@ const sectionLabels: Record<string, { label: string; icon: LucideIcon }> = {
   findings:   { label: "Outputs",        icon: BarChart3 },
   memory:     { label: "Memory",         icon: Brain },
   contacts:   { label: "Contacts",       icon: Contact2 },
+  settings:   { label: "Settings",       icon: Settings },
 };
 
 interface BreadcrumbBarProps {

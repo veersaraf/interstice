@@ -35,6 +35,7 @@ const CODEX_BIN =
     ? path.join(process.env.APPDATA || "", "npm", "codex.cmd")
     : "codex");
 
+const DEFAULT_CODEX_MODEL = "gpt-5.3-codex";
 const PROCESS_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
@@ -62,10 +63,8 @@ export async function runCodexAgent(opts: {
   // Bypass sandbox for non-interactive agent execution
   args.push("--dangerously-bypass-approvals-and-sandbox");
 
-  // Model selection
-  if (model) {
-    args.push("--model", model);
-  }
+  // Model selection — default to gpt-5.3-codex
+  args.push("--model", model || DEFAULT_CODEX_MODEL);
 
   // Session resume or fresh
   if (sessionId) {
@@ -170,6 +169,21 @@ export async function runCodexAgent(opts: {
         console.log(`[codex-runner] stderr: ${stderrOutput.substring(0, 500)}`);
       }
 
+      // Windows DLL init failure — retry without session, or fail with clear message
+      if (code !== null && isWindowsCrashCode(code)) {
+        if (sessionId) {
+          console.log(`[codex-runner] Windows crash code ${code} with session — retrying fresh...`);
+          runCodexAgent({ ...opts, sessionId: null, onEvent })
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        reject(new Error(
+          `Codex CLI crashed (Windows code ${code}). Too many processes or system resources exhausted.`
+        ));
+        return;
+      }
+
       // Retry with fresh session if session expired
       if (code !== 0 && isCodexUnknownSessionError(stderrOutput) && sessionId) {
         console.log(`[codex-runner] Session ${sessionId} expired, retrying fresh...`);
@@ -202,6 +216,11 @@ export async function runCodexAgent(opts: {
     proc.stdin.write(prompt);
     proc.stdin.end();
   });
+}
+
+function isWindowsCrashCode(code: number): boolean {
+  const WINDOWS_CRASH_CODES = [3221225794, 3221225477];
+  return WINDOWS_CRASH_CODES.includes(code);
 }
 
 function isCodexUnknownSessionError(stderr: string): boolean {

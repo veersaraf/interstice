@@ -9,6 +9,7 @@ import { TasksPage } from "./TasksPage";
 import { AgentsPage } from "./AgentsPage";
 import { ApprovalsPage } from "./ApprovalsPage";
 import { FindingsPage } from "./FindingsPage";
+import { SettingsPage } from "./SettingsPage";
 
 /* ─── Navigation context so children can navigate ─── */
 const NavigationContext = createContext<(section: string) => void>(() => {});
@@ -37,6 +38,8 @@ export function AppShell({ children }: AppShellProps) {
         return <ContactsPage />;
       case "memory":
         return <MemoryPage />;
+      case "settings":
+        return <SettingsPage />;
       default:
         return children;
     }

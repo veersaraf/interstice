@@ -1,7 +1,6 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
-import { runAgent } from "./claude-runner";
-import { runAgentUnified, type AdapterType } from "./agent-runner";
+import { runAgentUnified } from "./agent-runner";
 import { sendOmiNotification, extractOmiUid } from "./omi";
 import { makeCall, parsePhoneNumber } from "../skills/make_call";
 import { sendEmail } from "../skills/send_email";
@@ -9,8 +8,8 @@ import path from "path";
 import fs from "fs";
 import { Id } from "../convex/_generated/dataModel";
 
-const HEARTBEAT_INTERVAL_MS = 3000;
-const MAX_CONCURRENT_AGENTS = 3; // Allow parallel agent execution on macOS
+const HEARTBEAT_INTERVAL_MS = 4000;
+const MAX_CONCURRENT_AGENTS = 1; // Run agents one at a time — Windows DLL init crashes with concurrent spawns
 const PROJECT_ROOT = process.cwd();
 const MEMORY_PATH = path.resolve(PROJECT_ROOT, "memory", "company.md");
 
@@ -79,14 +78,20 @@ export function startHeartbeat(convexUrl: string) {
         console.log(`[heartbeat] Recovered ${result.reset} orphaned in_progress tasks → pending`);
       }
 
-      // Reset all agents to idle on startup
+      // Reset all agents to idle and clear stale sessions (old Claude sessions break Codex resume)
       const agents = await client.query(api.agents.list, {});
       for (const agent of agents) {
         if (agent.status !== "idle") {
           await client.mutation(api.agents.setStatus, { id: agent._id, status: "idle" });
         }
+        // Clear any old sessions so agents start fresh with Codex
+        await client.mutation(api.sessions.upsert, {
+          agentId: agent._id,
+          claudeSessionId: "",
+          cwd: PROJECT_ROOT,
+        });
       }
-      console.log("[heartbeat] All agents reset to idle");
+      console.log("[heartbeat] All agents reset to idle, sessions cleared");
     } catch (err) {
       console.error("[heartbeat] Recovery error:", err);
     }
@@ -323,9 +328,6 @@ async function runAgentTask(
     // Pre-approve tools per agent so they can run non-interactively
     const allowedTools = getAgentTools(agent.name);
 
-    // Select adapter: use agent's configured adapter or default to claude
-    const adapterType: AdapterType = agent.adapterType || "claude";
-
     // Use session for --resume, but skip if empty (cleared after crash)
     const validSessionId =
       session?.cwd === PROJECT_ROOT && session.claudeSessionId
@@ -333,15 +335,13 @@ async function runAgentTask(
         : null;
 
     const result = await runAgentUnified({
-      adapter: adapterType,
+      adapter: "codex",
       prompt,
       systemPromptPath,
       sessionId: validSessionId,
       cwd: PROJECT_ROOT,
       maxTurns,
-      allowedTools,
-      disableTools: agent.name === "ceo",
-      model: agent.model || undefined,
+      model: agent.model || "gpt-5.3-codex",
       onOutput: async (text: string) => {
         await client.mutation(api.activity.log, {
           agentId: agent._id,
