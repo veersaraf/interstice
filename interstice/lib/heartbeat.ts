@@ -1139,12 +1139,15 @@ function getAgentTools(agentName: string): string[] {
         "WebFetch",
       ];
     case "content":
-      // Content agent reads research and writes content files
+      // Content agent reads research, writes files, generates images, and posts to social
       return [
         "Read",
         "Write",
         "Edit",
         "Bash(mkdir*)",
+        "Bash(npx tsx skills/generate_images.ts*)",
+        "Bash(npx tsx skills/postiz_post.ts*)",
+        "Bash(npx tsx skills/macroscope_analyze.ts*)",
       ];
     case "outreach":
       // Outreach agent sends emails and makes calls
