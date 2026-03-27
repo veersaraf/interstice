@@ -220,7 +220,7 @@ export function ContentPanel() {
   const agents = useQuery(api.agents.list);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Also include Communications agent tasks with output as content
+  // Also include Content agent tasks with output
   const commsOutputs = useMemo(() => {
     if (!tasks || !agents) return [];
     const commsAgent = agents.find((a) => a.role === "Content");
