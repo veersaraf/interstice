@@ -436,14 +436,15 @@ export default function Dashboard() {
     return tree;
   }, [tasks]);
 
-  // Find most recently completed task with output (the "wow moment")
+  // Find most recently completed task with output (the "wow moment") — exclude CEO synthesis
+  const ceoAgentId = useMemo(() => agents?.find(a => a.role === "CEO")?._id ?? null, [agents]);
   const recentOutput = useMemo(() => {
     if (!tasks) return null;
     const withOutput = tasks
-      .filter(t => t.status === "done" && t.output && t.output.length > 20 && t._id !== dismissedOutputId)
+      .filter(t => t.status === "done" && t.output && t.output.length > 20 && t._id !== dismissedOutputId && t.agentId !== ceoAgentId)
       .sort((a, b) => (b.completedAt ?? b._creationTime) - (a.completedAt ?? a._creationTime));
     return withOutput[0] ?? null;
-  }, [tasks, dismissedOutputId]);
+  }, [tasks, dismissedOutputId, ceoAgentId]);
 
   return (
     <div className="h-full flex flex-col gap-3 overflow-hidden">

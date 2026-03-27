@@ -61,13 +61,19 @@ export function FindingsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
 
-  // Filter to tasks that have output
+  // Filter to tasks that have substantive output (exclude CEO synthesis/delegation messages)
   const tasksWithOutput = useMemo(() => {
-    if (!tasks) return [];
+    if (!tasks || !agents) return [];
+    const ceoAgentId = agents.find((a) => a.role === "CEO")?._id;
     return tasks
-      .filter((t) => t.output && t.output.trim().length > 0)
+      .filter((t) => {
+        if (!t.output || t.output.trim().length === 0) return false;
+        // Exclude CEO tasks — those are delegation summaries, not real outputs
+        if (t.agentId === ceoAgentId) return false;
+        return true;
+      })
       .sort((a, b) => (b.completedAt ?? b._creationTime) - (a.completedAt ?? a._creationTime));
-  }, [tasks]);
+  }, [tasks, agents]);
 
   const agentMap = useMemo(
     () => new Map((agents ?? []).map((a) => [a._id, a])),
