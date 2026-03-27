@@ -11,7 +11,6 @@ import {
   Brain,
   Contact2,
   Settings,
-  ChevronRight,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { ScrollArea } from "../../components/ui/scroll-area";
@@ -24,27 +23,27 @@ import {
 } from "../../components/ui/tooltip";
 import type { LucideIcon } from "lucide-react";
 
-const navSections: { label: string | null; items: { id: string; label: string; icon: LucideIcon; hasSubmenu?: boolean }[] }[] = [
+const navSections: { label: string | null; items: { id: string; label: string; icon: LucideIcon }[] }[] = [
   {
     label: "Overview",
     items: [
-      { id: "dashboard", label: "Dashboard",     icon: LayoutDashboard },
-      { id: "tasks",     label: "Tasks",          icon: Zap },
-      { id: "findings",  label: "Outputs",        icon: BarChart3 },
-      { id: "approvals", label: "Approvals",      icon: ShieldCheck },
+      { id: "dashboard", label: "Dashboard",  icon: LayoutDashboard },
+      { id: "tasks",     label: "Tasks",       icon: Zap },
+      { id: "findings",  label: "Outputs",     icon: BarChart3 },
+      { id: "approvals", label: "Approvals",   icon: ShieldCheck },
     ],
   },
   {
     label: "Team",
     items: [
-      { id: "agents",    label: "Your Team",      icon: Users },
+      { id: "agents", label: "Your Team", icon: Users },
     ],
   },
   {
     label: "Company",
     items: [
-      { id: "memory",    label: "Memory",         icon: Brain },
-      { id: "contacts",  label: "Contacts",       icon: Contact2 },
+      { id: "memory",   label: "Memory",   icon: Brain },
+      { id: "contacts", label: "Contacts", icon: Contact2 },
     ],
   },
 ];
@@ -68,13 +67,13 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <aside className="w-60 h-full flex flex-col shrink-0 bg-sidebar border-r border-sidebar-border">
+      <aside className="w-56 h-full flex flex-col shrink-0 bg-sidebar border-r border-sidebar-border">
         {/* Brand */}
         <div className="h-14 px-4 flex items-center shrink-0 border-b border-sidebar-border">
           <img
             src="/avatars/intersticelogo.jpg"
             alt="Interstice"
-            className="h-8 w-auto object-contain rounded-lg"
+            className="h-7 w-auto object-contain rounded-lg"
           />
           {activeAgents.length > 0 && (
             <Tooltip>
@@ -91,18 +90,18 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
           )}
         </div>
 
-        {/* Nav sections */}
+        {/* Nav */}
         <ScrollArea className="flex-1">
-          <nav className="py-3 px-3 flex flex-col gap-5">
+          <nav className="py-3 px-2 flex flex-col gap-5">
             {navSections.map((section, si) => (
               <div key={si}>
                 {section.label && (
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">
+                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1.5">
                     {section.label}
                   </p>
                 )}
                 <div className="flex flex-col gap-0.5">
-                  {section.items.map(({ id, label, icon: Icon, hasSubmenu }) => {
+                  {section.items.map(({ id, label, icon: Icon }) => {
                     const isActive = activeSection === id;
                     const badge = getBadge(id);
 
@@ -111,7 +110,7 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
                         key={id}
                         onClick={() => onNavigate(id)}
                         className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all text-left group",
+                          "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all text-left group",
                           isActive
                             ? "bg-primary/10 text-primary"
                             : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent"
@@ -119,18 +118,15 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
                       >
                         <Icon
                           className={cn(
-                            "w-[18px] h-[18px] shrink-0 transition-colors",
+                            "w-4 h-4 shrink-0 transition-colors",
                             isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                           )}
                         />
                         <span className="truncate flex-1">{label}</span>
                         {badge && (
-                          <span className="flex items-center justify-center min-w-[20px] h-5 text-[10px] font-bold px-1.5 rounded-full bg-red-500 text-white tabular-nums">
+                          <span className="flex items-center justify-center min-w-[18px] h-[18px] text-[9px] font-bold px-1 rounded-full bg-red-500 text-white tabular-nums">
                             {badge}
                           </span>
-                        )}
-                        {hasSubmenu && (
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                         )}
                       </button>
                     );
@@ -144,18 +140,18 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
         <Separator className="bg-sidebar-border" />
 
         {/* Settings */}
-        <div className="px-3 py-2 shrink-0">
+        <div className="px-2 py-1.5 shrink-0">
           <button
             onClick={() => onNavigate("settings")}
             className={cn(
-              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all text-left group",
+              "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all text-left group",
               activeSection === "settings"
                 ? "bg-primary/10 text-primary"
                 : "text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent"
             )}
           >
             <Settings className={cn(
-              "w-[18px] h-[18px] shrink-0 transition-colors",
+              "w-4 h-4 shrink-0 transition-colors",
               activeSection === "settings" ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
             )} />
             <span>Settings</span>
@@ -164,8 +160,8 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
 
         {/* Footer */}
         <div className="px-4 py-2 shrink-0 border-t border-sidebar-border">
-          <p className="text-[10px] text-muted-foreground/60 text-center">
-            &copy; 2026 Interstice
+          <p className="text-[9px] text-muted-foreground/50 text-center">
+            Interstice v1.0
           </p>
         </div>
       </aside>
