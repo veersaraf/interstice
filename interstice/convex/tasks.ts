@@ -246,6 +246,114 @@ export const failTask = mutation({
   },
 });
 
+// Create a task manually from the dashboard (user-driven, not CEO delegation)
+export const createManual = mutation({
+  args: {
+    title: v.string(),
+    description: v.optional(v.string()),
+    agentId: v.optional(v.id("agents")),
+    parentTaskId: v.optional(v.id("tasks")),
+    priority: v.optional(v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("critical")
+    )),
+  },
+  handler: async (ctx, args) => {
+    // Use title as the input prompt if no separate description
+    const input = args.description || args.title;
+    return await ctx.db.insert("tasks", {
+      title: args.title,
+      description: args.description,
+      input,
+      agentId: args.agentId,
+      parentTaskId: args.parentTaskId,
+      priority: args.priority ?? "medium",
+      status: "pending",
+      createdByUser: true,
+    });
+  },
+});
+
+// Reassign a task to a different agent (resets to pending so heartbeat picks it up)
+export const reassign = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    agentId: v.optional(v.id("agents")),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) return null;
+    // Only reassign tasks that aren't done/cancelled
+    if (task.status === "done" || task.status === "cancelled") return null;
+
+    await ctx.db.patch(args.taskId, {
+      agentId: args.agentId,
+      status: "pending",
+      startedAt: undefined,
+    });
+    return await ctx.db.get(args.taskId);
+  },
+});
+
+// Update task priority
+export const updatePriority = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    priority: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("critical")
+    ),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.taskId, { priority: args.priority });
+  },
+});
+
+// Add a comment to a task
+export const addComment = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    content: v.string(),
+    agentId: v.optional(v.id("agents")),
+    isSystem: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("task_comments", {
+      taskId: args.taskId,
+      content: args.content,
+      agentId: args.agentId,
+      isSystem: args.isSystem,
+    });
+  },
+});
+
+// Get comments for a task
+export const getComments = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("task_comments")
+      .withIndex("by_task", (q) => q.eq("taskId", args.taskId))
+      .collect();
+  },
+});
+
+// Get tasks filtered by agent
+export const listByAgent = query({
+  args: { agentId: v.id("agents") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("tasks")
+      .withIndex("by_agent_status", (q) => q.eq("agentId", args.agentId))
+      .order("desc")
+      .collect();
+  },
+});
+
 // Clear all tasks (for dev/testing cleanup)
 export const clearAll = mutation({
   handler: async (ctx) => {

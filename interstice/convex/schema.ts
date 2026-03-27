@@ -33,6 +33,14 @@ export default defineSchema({
       v.literal("cancelled")
     ),
     input: v.string(),
+    title: v.optional(v.string()), // Human-readable task name (UI-created tasks)
+    description: v.optional(v.string()), // Longer context beyond input
+    priority: v.optional(v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("critical")
+    )),
     output: v.optional(v.string()),
     outputFormat: v.optional(v.union(
       v.literal("text"),
@@ -46,6 +54,7 @@ export default defineSchema({
       mimeType: v.string(),
     }))),
     createdBy: v.optional(v.id("agents")),
+    createdByUser: v.optional(v.boolean()), // true if created from dashboard (not CEO delegation)
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     retryCount: v.optional(v.number()), // Track failures — cancel after MAX_RETRIES
@@ -53,6 +62,14 @@ export default defineSchema({
     .index("by_agent_status", ["agentId", "status"])
     .index("by_status", ["status"])
     .index("by_parent", ["parentTaskId"]),
+
+  // Task comments — threaded discussion on tasks
+  task_comments: defineTable({
+    taskId: v.id("tasks"),
+    agentId: v.optional(v.id("agents")), // null = user comment
+    content: v.string(),
+    isSystem: v.optional(v.boolean()), // true for auto-generated status updates
+  }).index("by_task", ["taskId"]),
 
   // Inter-agent direct messages
   messages: defineTable({
