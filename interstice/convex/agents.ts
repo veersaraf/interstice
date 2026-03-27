@@ -62,6 +62,97 @@ export const setAdapter = mutation({
   },
 });
 
+// Migrate old agent roster (comms, developer, call) to new roster (content, outreach, analytics)
+export const migrateRoster = mutation({
+  handler: async (ctx) => {
+    const agents = await ctx.db.query("agents").collect();
+    const byName = new Map(agents.map((a) => [a.name, a]));
+    const changes: string[] = [];
+
+    // comms → outreach
+    const comms = byName.get("comms");
+    if (comms) {
+      await ctx.db.patch(comms._id, {
+        name: "outreach",
+        role: "Outreach",
+        title: "Outreach Specialist",
+        description:
+          "Personalized cold emails, Bland AI phone calls, lead tracking. Reads research lead list. Approval gate on all sends and calls.",
+      });
+      changes.push("comms → outreach");
+    }
+
+    // developer → content
+    const developer = byName.get("developer");
+    if (developer) {
+      await ctx.db.patch(developer._id, {
+        name: "content",
+        role: "Content",
+        title: "Content Creator",
+        description:
+          "Creates ALL marketing content from Research findings — TikTok slideshows, X posts, LinkedIn posts, landing pages, email sequences.",
+      });
+      changes.push("developer → content");
+    }
+
+    // call → analytics
+    const call = byName.get("call");
+    if (call) {
+      await ctx.db.patch(call._id, {
+        name: "analytics",
+        role: "Analytics",
+        title: "Analytics Agent",
+        description:
+          "Monitors performance across channels. Diagnoses funnel problems. Updates other agents skill files based on findings.",
+      });
+      changes.push("call → analytics");
+    }
+
+    // If new agents already exist but old ones were already migrated, ensure they exist
+    if (!byName.get("outreach") && !comms) {
+      const ceo = byName.get("ceo");
+      await ctx.db.insert("agents", {
+        name: "outreach",
+        role: "Outreach",
+        title: "Outreach Specialist",
+        status: "idle",
+        reportsTo: ceo?._id,
+        description:
+          "Personalized cold emails, Bland AI phone calls, lead tracking. Reads research lead list. Approval gate on all sends and calls.",
+      });
+      changes.push("created outreach (new)");
+    }
+    if (!byName.get("content") && !developer) {
+      const ceo = byName.get("ceo");
+      await ctx.db.insert("agents", {
+        name: "content",
+        role: "Content",
+        title: "Content Creator",
+        status: "idle",
+        reportsTo: ceo?._id,
+        description:
+          "Creates ALL marketing content from Research findings — TikTok slideshows, X posts, LinkedIn posts, landing pages, email sequences.",
+      });
+      changes.push("created content (new)");
+    }
+    if (!byName.get("analytics") && !call) {
+      const ceo = byName.get("ceo");
+      await ctx.db.insert("agents", {
+        name: "analytics",
+        role: "Analytics",
+        title: "Analytics Agent",
+        status: "idle",
+        reportsTo: ceo?._id,
+        description:
+          "Monitors performance across channels. Diagnoses funnel problems. Updates other agents skill files based on findings.",
+      });
+      changes.push("created analytics (new)");
+    }
+
+    return { migrated: changes.length > 0, changes };
+  },
+});
+
 // Seed all 5 agents — idempotent, safe to call multiple times
 export const seed = mutation({
   handler: async (ctx) => {
