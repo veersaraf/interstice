@@ -12,14 +12,18 @@ import {
   CircleDot,
   Plus,
   Send,
+  FileText,
+  Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { ApprovalQueue } from "./components/ApprovalQueue";
 import { GameWorld } from "./components/GameWorld";
 import { ApprovalToast } from "./components/ApprovalToast";
 import { cn, timeAgo } from "../lib/utils";
 import { useNavigate } from "./components/AppShell";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Id } from "../../convex/_generated/dataModel";
+import ReactMarkdown from "react-markdown";
 
 /* ─── Agent config ──────────────────────────────────────────── */
 const agentConfig: Record<string, { avatar: string; color: string; bg: string; label: string; border: string }> = {
@@ -250,6 +254,89 @@ function CreateTaskModal({
   );
 }
 
+/* ─── Completed Output Card — the "wow moment" ─────────────── */
+function CompletedOutputCard({
+  task,
+  agent,
+  onViewFull,
+}: {
+  task: {
+    _id: string;
+    input: string;
+    title?: string;
+    output?: string;
+    outputFormat?: string;
+    status: string;
+    completedAt?: number;
+    _creationTime: number;
+  };
+  agent: { role: string; name: string } | null;
+  onViewFull: () => void;
+}) {
+  const cfg = agent ? agentConfig[agent.role] : null;
+  const displayTitle = task.title || cleanInput(task.input);
+  const outputPreview = task.output
+    ? task.output.length > 400
+      ? task.output.slice(0, 400) + "…"
+      : task.output
+    : "";
+
+  return (
+    <div className="bg-white rounded-2xl border border-green-200/60 shadow-sm overflow-hidden h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Shimmer header */}
+      <div className="relative px-4 py-3 border-b border-green-100/60 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-green-50 via-emerald-50/30 to-green-50 animate-pulse" />
+        <div className="relative flex items-center gap-2.5">
+          <div className="relative">
+            {cfg?.avatar ? (
+              <img src={cfg.avatar} alt={cfg.label} className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-green-100" />
+            )}
+            <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center">
+              <Check className="w-2 h-2 text-white" />
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3 text-green-600" />
+              <span className="text-[11px] font-bold text-green-700">Output Ready</span>
+            </div>
+            <p className="text-xs font-medium text-foreground line-clamp-1 mt-0.5">{displayTitle}</p>
+          </div>
+          <button
+            onClick={onViewFull}
+            className="h-8 px-3 rounded-xl bg-green-600 text-white text-[10px] font-semibold flex items-center gap-1.5 hover:bg-green-700 transition-colors shadow-sm shrink-0"
+          >
+            <ExternalLink className="w-3 h-3" />
+            View Report
+          </button>
+        </div>
+      </div>
+
+      {/* Output preview */}
+      {outputPreview && (
+        <div className="px-4 py-3 max-h-[180px] overflow-auto">
+          <div className="text-[11px] text-stone-600 leading-relaxed">
+            <ReactMarkdown
+              components={{
+                h1: ({ children }) => <p className="font-bold text-xs mt-2 mb-1 first:mt-0 text-foreground">{children}</p>,
+                h2: ({ children }) => <p className="font-semibold text-[11px] mt-1.5 mb-0.5 text-foreground">{children}</p>,
+                h3: ({ children }) => <p className="font-semibold text-[11px] mt-1 mb-0.5 text-foreground">{children}</p>,
+                p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc pl-3 mb-1.5 space-y-0.5">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-3 mb-1.5 space-y-0.5">{children}</ol>,
+                strong: ({ children }) => <strong className="font-semibold text-stone-800">{children}</strong>,
+                code: ({ children }) => <code className="text-[10px] bg-stone-50 rounded px-1 py-0.5 font-mono">{children}</code>,
+              }}
+            >{outputPreview}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Chat Input — sends command to CEO ─────────────────────── */
 function ChatInput() {
   const [message, setMessage] = useState("");
@@ -313,6 +400,7 @@ export default function Dashboard() {
   const agents = useQuery(api.agents.list);
   const tasks = useQuery(api.tasks.list);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [dismissedOutputId, setDismissedOutputId] = useState<string | null>(null);
 
   const pendingApprovals = approvals?.length ?? 0;
 
@@ -347,6 +435,15 @@ export default function Dashboard() {
     }
     return tree;
   }, [tasks]);
+
+  // Find most recently completed task with output (the "wow moment")
+  const recentOutput = useMemo(() => {
+    if (!tasks) return null;
+    const withOutput = tasks
+      .filter(t => t.status === "done" && t.output && t.output.length > 20 && t._id !== dismissedOutputId)
+      .sort((a, b) => (b.completedAt ?? b._creationTime) - (a.completedAt ?? a._creationTime));
+    return withOutput[0] ?? null;
+  }, [tasks, dismissedOutputId]);
 
   return (
     <div className="h-full flex flex-col gap-3 overflow-hidden">
@@ -431,7 +528,7 @@ export default function Dashboard() {
           <ChatInput />
         </div>
 
-        {/* ─── BOTTOM LEFT: Approvals (empty unless needed) ─── */}
+        {/* ─── BOTTOM LEFT: Output card / Approvals / Empty ─── */}
         <div className="lg:col-span-7 xl:col-span-7 lg:row-span-1">
           {pendingApprovals > 0 ? (
             <div className="bg-white rounded-2xl border border-amber-200/60 shadow-sm overflow-hidden h-full">
@@ -451,6 +548,12 @@ export default function Dashboard() {
                 <ApprovalQueue />
               </div>
             </div>
+          ) : recentOutput ? (
+            <CompletedOutputCard
+              task={recentOutput}
+              agent={recentOutput.agentId ? agentMap.get(recentOutput.agentId) ?? null : null}
+              onViewFull={() => navigate("tasks")}
+            />
           ) : (
             <div className="bg-stone-50/40 rounded-2xl border border-dashed border-stone-200/40 h-full flex items-center justify-center min-h-[80px]">
               <div className="text-center">
