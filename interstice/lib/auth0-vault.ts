@@ -5,10 +5,12 @@
  * for third-party services (Gmail, LinkedIn, etc.) via Auth0's Token Vault.
  *
  * Required env vars in .env.local:
- *   AUTH0_DOMAIN        — Auth0 tenant domain (e.g., myapp.us.auth0.com)
- *   AUTH0_CLIENT_ID     — Auth0 application client ID
- *   AUTH0_CLIENT_SECRET — Auth0 application client secret
- *   AUTH0_AUDIENCE      — Auth0 API audience identifier
+ *   AUTH0_DOMAIN             — Auth0 tenant domain (e.g., myapp.us.auth0.com)
+ *   AUTH0_CLIENT_ID          — Auth0 Web App client ID (for user-facing auth)
+ *   AUTH0_CLIENT_SECRET      — Auth0 Web App client secret
+ *   AUTH0_M2M_CLIENT_ID      — Auth0 M2M client ID (for agent-to-API auth)
+ *   AUTH0_M2M_CLIENT_SECRET  — Auth0 M2M client secret
+ *   AUTH0_AUDIENCE           — Auth0 API audience identifier (optional)
  */
 
 import { config } from "dotenv";
@@ -17,6 +19,8 @@ config({ path: ".env.local" });
 const AUTH0_DOMAIN = process.env.AUTH0_DOMAIN;
 const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID;
 const AUTH0_CLIENT_SECRET = process.env.AUTH0_CLIENT_SECRET;
+const AUTH0_M2M_CLIENT_ID = process.env.AUTH0_M2M_CLIENT_ID;
+const AUTH0_M2M_CLIENT_SECRET = process.env.AUTH0_M2M_CLIENT_SECRET;
 const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE;
 
 interface TokenResult {
@@ -39,11 +43,15 @@ function checkEnvVars(): string | null {
  * Used by agents to authenticate with protected APIs.
  */
 export async function getM2MToken(audience?: string): Promise<TokenResult> {
-  const missing = checkEnvVars();
-  if (missing) {
+  if (!AUTH0_DOMAIN) {
+    return { success: false, message: "ERROR: AUTH0_DOMAIN not set in .env.local" };
+  }
+  const clientId = AUTH0_M2M_CLIENT_ID || AUTH0_CLIENT_ID;
+  const clientSecret = AUTH0_M2M_CLIENT_SECRET || AUTH0_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
     return {
       success: false,
-      message: `ERROR: ${missing} not set in .env.local. Configure Auth0 at https://manage.auth0.com`,
+      message: "ERROR: AUTH0_M2M_CLIENT_ID/SECRET (or AUTH0_CLIENT_ID/SECRET) not set in .env.local",
     };
   }
 
@@ -51,8 +59,8 @@ export async function getM2MToken(audience?: string): Promise<TokenResult> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_id: AUTH0_CLIENT_ID,
-      client_secret: AUTH0_CLIENT_SECRET,
+      client_id: clientId,
+      client_secret: clientSecret,
       audience: audience || AUTH0_AUDIENCE,
       grant_type: "client_credentials",
     }),
