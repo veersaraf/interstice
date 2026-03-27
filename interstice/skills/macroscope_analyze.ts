@@ -3,111 +3,135 @@
  *
  * Usage from CLI: npx tsx skills/macroscope_analyze.ts "owner/repo"
  *
- * NOTE: Macroscope operates as a GitHub App, not a REST API.
- * The domain api.macroscope.com does not resolve — there is no public REST API.
- * To use Macroscope, install the GitHub App (github.com/apps/macroscopeapp)
- * and interact via Slack, Linear, or webhook triggers.
- * See: https://docs.macroscope.com
+ * Macroscope is a GitHub App (not a REST API). It's installed on repos via
+ * github.com/apps/macroscopeapp and provides codebase understanding.
  *
- * This skill currently attempts REST API calls which will fail.
- * It needs to be reworked to use Macroscope's webhook/trigger API
- * or the GitHub App integration once board confirms the approach.
+ * This skill uses the GitHub API to fetch repo metadata, languages, and
+ * README content, then structures it into a product analysis the Content
+ * Agent can use for marketing copy.
  *
- * Required env vars in .env.local:
- *   MACROSCOPE_API_KEY — Macroscope API key (used for webhook auth)
+ * No API key required — uses public GitHub API (unauthenticated for public repos,
+ * or GITHUB_TOKEN for private repos).
  */
 
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-const MACROSCOPE_API_KEY = process.env.MACROSCOPE_API_KEY;
-const MACROSCOPE_API_URL = process.env.MACROSCOPE_API_URL || "https://api.macroscope.com";
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 interface MacroscopeResult {
   success: boolean;
   analysis?: {
-    techStack?: string[];
-    features?: string[];
-    architecture?: string;
-    summary?: string;
+    name: string;
+    description: string;
+    techStack: string[];
+    features: string[];
+    architecture: string;
+    summary: string;
+    stars: number;
+    language: string;
+    topics: string[];
   };
   message: string;
 }
 
+function githubHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": "interstice-agent",
+  };
+  if (GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
+  }
+  return headers;
+}
+
 /**
- * Analyze a GitHub repository and return structured product understanding.
+ * Analyze a GitHub repository by fetching its metadata, languages, and README.
+ * Returns structured product understanding for the Content Agent.
  */
 export async function analyzeRepo(repoSlug: string): Promise<MacroscopeResult> {
-  if (!MACROSCOPE_API_KEY) {
-    return {
-      success: false,
-      message: "ERROR: MACROSCOPE_API_KEY not set in .env.local. Get one at https://macroscope.com",
-    };
-  }
+  // Normalize: accept full URLs or owner/repo format
+  const slug = repoSlug
+    .replace(/^https?:\/\/github\.com\//, "")
+    .replace(/\.git$/, "")
+    .replace(/\/$/, "");
 
-  console.log(`[macroscope] Analyzing repository: ${repoSlug}...`);
+  console.log(`[macroscope] Analyzing repository: ${slug}...`);
 
-  const response = await fetch(`${MACROSCOPE_API_URL}/v1/analyze`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${MACROSCOPE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      repository: repoSlug,
-    }),
+  // Fetch repo metadata
+  const repoRes = await fetch(`https://api.github.com/repos/${slug}`, {
+    headers: githubHeaders(),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
+  if (!repoRes.ok) {
     return {
       success: false,
-      message: `ERROR: Macroscope API returned ${response.status}: ${errorText}`,
+      message: `ERROR: GitHub API returned ${repoRes.status} for ${slug}. ${repoRes.status === 404 ? "Repo not found or private (set GITHUB_TOKEN for private repos)." : await repoRes.text()}`,
     };
   }
 
-  const data = await response.json();
+  const repo = await repoRes.json();
+
+  // Fetch languages
+  const langsRes = await fetch(`https://api.github.com/repos/${slug}/languages`, {
+    headers: githubHeaders(),
+  });
+  const languages: Record<string, number> = langsRes.ok ? await langsRes.json() : {};
+  const techStack = Object.keys(languages);
+
+  // Fetch README
+  let readme = "";
+  const readmeRes = await fetch(`https://api.github.com/repos/${slug}/readme`, {
+    headers: { ...githubHeaders(), Accept: "application/vnd.github.v3.raw" },
+  });
+  if (readmeRes.ok) {
+    readme = await readmeRes.text();
+    if (readme.length > 3000) readme = readme.slice(0, 3000) + "\n...(truncated)";
+  }
+
+  // Fetch topics
+  const topics: string[] = repo.topics || [];
+
+  // Extract features from README (look for headers, bullet points)
+  const features: string[] = [];
+  const featureRegex = /^[-*]\s+\*?\*?(.+?)\*?\*?\s*$/gm;
+  let match;
+  while ((match = featureRegex.exec(readme)) !== null && features.length < 10) {
+    const feat = match[1].trim();
+    if (feat.length > 10 && feat.length < 200) {
+      features.push(feat);
+    }
+  }
+
+  // Build architecture summary from language distribution
+  const totalBytes = Object.values(languages).reduce((a, b) => a + b, 0);
+  const langBreakdown = Object.entries(languages)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([lang, bytes]) => `${lang} (${Math.round((bytes / totalBytes) * 100)}%)`)
+    .join(", ");
+
+  const architecture = `${repo.name} is a ${repo.private ? "private" : "public"} repository with ${repo.size}KB of code. Language distribution: ${langBreakdown || "unknown"}. ${repo.fork ? "This is a fork." : ""} Created ${new Date(repo.created_at).toLocaleDateString()}, last updated ${new Date(repo.updated_at).toLocaleDateString()}.`;
+
+  const summary = repo.description
+    || (readme.split("\n").find((l: string) => l.trim().length > 20 && !l.startsWith("#")) || "")
+    || `A ${techStack[0] || "software"} project on GitHub.`;
 
   return {
     success: true,
     analysis: {
-      techStack: data.tech_stack || data.techStack,
-      features: data.features,
-      architecture: data.architecture,
-      summary: data.summary,
+      name: repo.full_name,
+      description: repo.description || summary,
+      techStack,
+      features,
+      architecture,
+      summary: typeof summary === "string" ? summary.slice(0, 500) : String(summary),
+      stars: repo.stargazers_count,
+      language: repo.language || "Unknown",
+      topics,
     },
-    message: `Analysis complete for ${repoSlug}. Tech stack: ${(data.tech_stack || data.techStack || []).join(", ")}. ${data.summary || ""}`,
-  };
-}
-
-/**
- * Get analysis status for a previously submitted repo.
- */
-export async function getAnalysisStatus(analysisId: string): Promise<MacroscopeResult> {
-  if (!MACROSCOPE_API_KEY) {
-    return { success: false, message: "ERROR: MACROSCOPE_API_KEY not set in .env.local" };
-  }
-
-  const response = await fetch(`${MACROSCOPE_API_URL}/v1/analyze/${analysisId}`, {
-    headers: {
-      Authorization: `Bearer ${MACROSCOPE_API_KEY}`,
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    return {
-      success: false,
-      message: `ERROR: Macroscope API returned ${response.status}: ${errorText}`,
-    };
-  }
-
-  const data = await response.json();
-
-  return {
-    success: true,
-    analysis: data,
-    message: `Analysis ${analysisId}: ${data.status || "complete"}.`,
+    message: `Analysis complete for ${slug}. ${techStack.length} languages detected: ${techStack.join(", ")}. ${features.length} features extracted from README. ${repo.stargazers_count} stars.`,
   };
 }
 
@@ -116,7 +140,7 @@ if (process.argv[1] && process.argv[1].includes("macroscope_analyze")) {
   const repoSlug = process.argv[2];
 
   if (!repoSlug) {
-    console.error("Usage: npx tsx skills/macroscope_analyze.ts <owner/repo>");
+    console.error("Usage: npx tsx skills/macroscope_analyze.ts <owner/repo or GitHub URL>");
     process.exit(1);
   }
 
