@@ -11,9 +11,13 @@
  */
 
 import { config } from "dotenv";
+import fs from "fs";
+import path from "path";
+
 config({ path: ".env.local" });
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const PUBLIC_IMAGES_DIR = path.resolve(process.cwd(), "public", "output", "images");
 
 interface ImageResult {
   success: boolean;
@@ -46,6 +50,10 @@ export async function generateSlideshow(
 
   console.log(`[generate_images] Creating 6-image slideshow for: ${productName}`);
 
+  // Ensure output directory exists
+  fs.mkdirSync(PUBLIC_IMAGES_DIR, { recursive: true });
+
+  const safeName = productName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 30);
   const images: Array<{ url: string; scene: string }> = [];
 
   for (const scene of SCENE_ARCHITECTURE) {
@@ -79,10 +87,31 @@ export async function generateSlideshow(
     }
 
     const data = await response.json();
-    const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
+    const remoteUrl = data.data?.[0]?.url;
+    const b64Data = data.data?.[0]?.b64_json;
 
-    if (imageUrl) {
-      images.push({ url: imageUrl, scene: scene.scene });
+    // Save image to disk so it persists and is servable by Next.js
+    const filename = `${safeName}_${scene.scene}.png`;
+    const filePath = path.join(PUBLIC_IMAGES_DIR, filename);
+    const localUrl = `/output/images/${filename}`;
+
+    if (b64Data) {
+      // gpt-image-1 returns base64 — decode and save
+      fs.writeFileSync(filePath, Buffer.from(b64Data, "base64"));
+      images.push({ url: localUrl, scene: scene.scene });
+      console.log(`  [${scene.scene}] Saved to ${filePath}`);
+    } else if (remoteUrl) {
+      // DALL-E 3 style — download and save locally (URLs expire after ~1hr)
+      try {
+        const imgResp = await fetch(remoteUrl);
+        const arrBuf = await imgResp.arrayBuffer();
+        fs.writeFileSync(filePath, Buffer.from(arrBuf));
+        images.push({ url: localUrl, scene: scene.scene });
+        console.log(`  [${scene.scene}] Downloaded and saved to ${filePath}`);
+      } catch {
+        // Fall back to remote URL if download fails
+        images.push({ url: remoteUrl, scene: scene.scene });
+      }
     }
   }
 
@@ -127,13 +156,29 @@ export async function generateSingleImage(prompt: string): Promise<ImageResult> 
   }
 
   const data = await response.json();
-  const imageUrl = data.data?.[0]?.url || data.data?.[0]?.b64_json;
+  const remoteUrl = data.data?.[0]?.url;
+  const b64Data = data.data?.[0]?.b64_json;
 
-  return {
-    success: true,
-    images: imageUrl ? [{ url: imageUrl, scene: "custom" }] : [],
-    message: imageUrl ? `Image generated successfully.` : "No image returned.",
-  };
+  fs.mkdirSync(PUBLIC_IMAGES_DIR, { recursive: true });
+  const filename = `custom_${Date.now()}.png`;
+  const filePath = path.join(PUBLIC_IMAGES_DIR, filename);
+  const localUrl = `/output/images/${filename}`;
+
+  if (b64Data) {
+    fs.writeFileSync(filePath, Buffer.from(b64Data, "base64"));
+    return { success: true, images: [{ url: localUrl, scene: "custom" }], message: "Image generated and saved." };
+  } else if (remoteUrl) {
+    try {
+      const imgResp = await fetch(remoteUrl);
+      const arrBuf = await imgResp.arrayBuffer();
+      fs.writeFileSync(filePath, Buffer.from(arrBuf));
+      return { success: true, images: [{ url: localUrl, scene: "custom" }], message: "Image generated and saved." };
+    } catch {
+      return { success: true, images: [{ url: remoteUrl, scene: "custom" }], message: "Image generated (remote URL)." };
+    }
+  }
+
+  return { success: false, images: [], message: "No image returned." };
 }
 
 // CLI entry point

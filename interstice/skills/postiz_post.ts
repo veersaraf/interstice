@@ -141,21 +141,58 @@ export async function listPosts(): Promise<{ success: boolean; posts?: unknown[]
 }
 
 // CLI entry point
+// Usage:
+//   npx tsx skills/postiz_post.ts "Post content here"
+//   npx tsx skills/postiz_post.ts --images "url1,url2,..." "TikTok caption here"
+//   npx tsx skills/postiz_post.ts --list
 if (process.argv[1] && process.argv[1].includes("postiz_post")) {
-  const content = process.argv.slice(2).join(" ");
+  const args = process.argv.slice(2);
 
-  if (!content) {
-    console.error('Usage: npx tsx skills/postiz_post.ts "Post content here"');
-    process.exit(1);
-  }
-
-  createPost(content)
-    .then((result) => {
-      console.log(result.message);
-      if (!result.success) process.exit(1);
-    })
-    .catch((err) => {
-      console.error("Postiz error:", err);
+  if (args[0] === "--list") {
+    listPosts()
+      .then((result) => {
+        console.log(result.message);
+        if (result.posts) {
+          result.posts.forEach((p: any) =>
+            console.log(`  [${p.status || "?"}] ${p.id || "?"}: ${(p.content || "").substring(0, 80)}`)
+          );
+        }
+        if (!result.success) process.exit(1);
+      })
+      .catch((err) => {
+        console.error("Postiz error:", err);
+        process.exit(1);
+      });
+  } else if (args[0] === "--images") {
+    const imageUrls = (args[1] || "").split(",").map((u: string) => u.trim()).filter(Boolean);
+    const caption = args.slice(2).join(" ");
+    if (!caption || imageUrls.length === 0) {
+      console.error('Usage: npx tsx skills/postiz_post.ts --images "url1,url2,..." "Caption"');
       process.exit(1);
-    });
+    }
+    createTikTokSlideshow(caption, imageUrls)
+      .then((result) => {
+        console.log(result.message);
+        if (!result.success) process.exit(1);
+      })
+      .catch((err) => {
+        console.error("Postiz error:", err);
+        process.exit(1);
+      });
+  } else {
+    const content = args.join(" ");
+    if (!content) {
+      console.error('Usage: npx tsx skills/postiz_post.ts "Post content here"');
+      process.exit(1);
+    }
+    createPost(content)
+      .then((result) => {
+        console.log(result.message);
+        if (!result.success) process.exit(1);
+      })
+      .catch((err) => {
+        console.error("Postiz error:", err);
+        process.exit(1);
+      });
+  }
 }
