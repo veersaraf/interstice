@@ -11,6 +11,7 @@ import {
   Zap,
   CircleDot,
   Plus,
+  Send,
 } from "lucide-react";
 import { ApprovalQueue } from "./components/ApprovalQueue";
 import { GameWorld } from "./components/GameWorld";
@@ -249,6 +250,62 @@ function CreateTaskModal({
   );
 }
 
+/* ─── Chat Input — sends command to CEO ─────────────────────── */
+function ChatInput() {
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    const text = message.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: text }),
+      });
+      if (res.ok) setMessage("");
+    } catch { /* silent */ } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-stone-100 px-3 py-2.5 shrink-0">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={message}
+          onChange={e => setMessage(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          placeholder="Tell your team what to do..."
+          disabled={sending}
+          className={cn(
+            "flex-1 h-9 px-3 rounded-lg text-xs",
+            "bg-stone-50 border border-stone-200/60 text-foreground",
+            "placeholder:text-stone-300",
+            "focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary/40",
+            "transition-all"
+          )}
+        />
+        <button
+          onClick={handleSend}
+          disabled={!message.trim() || sending}
+          className={cn(
+            "h-9 w-9 rounded-lg flex items-center justify-center shrink-0 transition-all",
+            message.trim() && !sending
+              ? "bg-primary text-white hover:bg-primary/90 shadow-sm"
+              : "bg-stone-100 text-stone-300 cursor-not-allowed"
+          )}
+        >
+          <Send className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Dashboard ──────────────────────────────────────────────── */
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -343,7 +400,7 @@ export default function Dashboard() {
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
                 <Zap className="w-8 h-8 text-stone-200 mb-2" />
                 <p className="text-xs text-stone-400 font-medium">No tasks yet</p>
-                <p className="text-[10px] text-stone-300 mt-0.5">Give your team a command to get started</p>
+                <p className="text-[10px] text-stone-300 mt-0.5">Tell your team what to do below</p>
               </div>
             ) : (
               taskTree.map(({ parent, children }) => (
@@ -369,6 +426,9 @@ export default function Dashboard() {
               ))
             )}
           </div>
+
+          {/* Chat input — send command to CEO */}
+          <ChatInput />
         </div>
 
         {/* ─── BOTTOM LEFT: Approvals (empty unless needed) ─── */}
