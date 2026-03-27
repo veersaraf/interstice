@@ -2,7 +2,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
 import { runAgentUnified } from "./agent-runner";
 import { sendOmiNotification, extractOmiUid } from "./omi";
-import { makeCall, parsePhoneNumber } from "../skills/make_call";
+import { makeCall, parsePhoneNumber } from "../skills/bland_call";
 import { sendEmail } from "../skills/send_email";
 import path from "path";
 import fs from "fs";

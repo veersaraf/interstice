@@ -31,7 +31,7 @@ Read the root `CLAUDE.md` for full system architecture. Key points:
 ## Priority Order
 
 1. Make the existing demo flow work end-to-end (command → CEO → agents → synthesis → response)
-2. Implement missing skills (send_email, write_file, make_call)
+2. Implement missing skills (send_email, write_file, bland_call)
 3. Wire approval post-actions (what happens after approve/deny)
 4. OMI response loop completion
 5. Dashboard polish

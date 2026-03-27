@@ -3,7 +3,7 @@ import { api } from "../../../../convex/_generated/api";
 import { NextRequest, NextResponse } from "next/server";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { extractOmiUid } from "../../../../lib/omi";
-import { makeCall, parsePhoneNumber } from "../../../../skills/make_call";
+import { makeCall, parsePhoneNumber } from "../../../../skills/bland_call";
 import { sendEmail } from "../../../../skills/send_email";
 
 function getClient() {

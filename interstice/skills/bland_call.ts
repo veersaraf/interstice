@@ -108,6 +108,23 @@ export async function getCallTranscript(callId: string): Promise<BlandCallResult
   };
 }
 
+/**
+ * Parse a phone number from call script details.
+ * Matches E.164, US 10-digit, and common formats.
+ */
+export function parsePhoneNumber(details: string): string | null {
+  const e164 = details.match(/\+1?\d{10,14}/);
+  if (e164) return e164[0];
+
+  const us10 = details.match(/\b(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})\b/);
+  if (us10) return `+1${us10[1].replace(/[-.\s]/g, "")}`;
+
+  return null;
+}
+
+/** Alias for backward-compatible imports */
+export const makeCall = blandCall;
+
 // CLI entry point
 if (process.argv[1] && process.argv[1].includes("bland_call")) {
   const phoneNumber = process.argv[2];

@@ -91,7 +91,7 @@ Point at it during the pitch: *"Watch — the developer just changed the landing
 Agents don't go rogue — they pause at decision points and ask. You get autonomous background work WITH human-in-the-loop at critical moments:
 
 - `send_email` → pauses for approval
-- `make_call` → pauses for approval
+- `bland_call` → pauses for approval
 - `deploy` → pauses for approval
 - Research, analysis, drafting → runs autonomously
 
