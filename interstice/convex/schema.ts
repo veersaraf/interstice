@@ -154,4 +154,58 @@ export default defineSchema({
     notes: v.optional(v.string()),
     addedBy: v.optional(v.id("agents")),
   }).index("by_name", ["name"]),
+
+  // Content outputs — generated marketing content (TikTok, tweets, LinkedIn, emails, landing pages)
+  content_outputs: defineTable({
+    agentId: v.id("agents"),
+    taskId: v.id("tasks"),
+    type: v.union(
+      v.literal("tiktok"),
+      v.literal("tweet"),
+      v.literal("linkedin"),
+      v.literal("email"),
+      v.literal("landing_page")
+    ),
+    content: v.any(), // JSON blob — structure varies by type
+    status: v.union(
+      v.literal("draft"),
+      v.literal("approved"),
+      v.literal("published")
+    ),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_agent", ["agentId"])
+    .index("by_type", ["type"]),
+
+  // Analytics data — performance metrics across channels
+  analytics_data: defineTable({
+    agentId: v.id("agents"),
+    taskId: v.id("tasks"),
+    channel: v.string(),
+    metric: v.string(),
+    value: v.number(),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_agent", ["agentId"])
+    .index("by_channel", ["channel"]),
+
+  // Leads — scored lead list from research
+  leads: defineTable({
+    taskId: v.id("tasks"),
+    name: v.string(),
+    company: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    relevanceScore: v.number(),
+    reason: v.string(),
+    outreachStatus: v.union(
+      v.literal("new"),
+      v.literal("contacted"),
+      v.literal("responded"),
+      v.literal("converted"),
+      v.literal("lost")
+    ),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_outreachStatus", ["outreachStatus"]),
 });

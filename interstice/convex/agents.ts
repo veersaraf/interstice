@@ -88,33 +88,33 @@ export const seed = mutation({
     });
 
     await ctx.db.insert("agents", {
-      name: "comms",
-      role: "Communications",
-      title: "Communications Specialist",
+      name: "content",
+      role: "Content",
+      title: "Content Creator",
       status: "idle",
       reportsTo: ceoId,
       description:
-        "Email drafting, outreach templates, investor messages, follow-ups.",
+        "Creates ALL marketing content from Research findings — TikTok slideshows, X posts, LinkedIn posts, landing pages, email sequences. The Larry agent.",
     });
 
     await ctx.db.insert("agents", {
-      name: "developer",
-      role: "Developer",
-      title: "Software Developer",
+      name: "outreach",
+      role: "Outreach",
+      title: "Outreach Specialist",
       status: "idle",
       reportsTo: ceoId,
       description:
-        "Code generation, landing pages, scaffolding, file output.",
+        "Personalized cold emails, Bland AI phone calls, lead tracking. Reads research lead list. Approval gate on all sends and calls.",
     });
 
     await ctx.db.insert("agents", {
-      name: "call",
-      role: "Call",
-      title: "Call Agent",
+      name: "analytics",
+      role: "Analytics",
+      title: "Analytics Agent",
       status: "idle",
       reportsTo: ceoId,
       description:
-        "Outbound phone calls via ElevenLabs + Twilio. Always requires approval.",
+        "Monitors performance across channels. Diagnoses funnel problems. Updates other agents skill files based on findings.",
     });
 
     return { seeded: true, count: 5 };

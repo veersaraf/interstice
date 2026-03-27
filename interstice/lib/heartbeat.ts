@@ -20,12 +20,12 @@ let activeProcessCount = 0;
 // Agents that produce data others depend on — must finish first
 const DATA_PRODUCER_AGENTS = ["research"];
 // Agents that consume data from producers — must wait for research before starting
-const DATA_CONSUMER_AGENTS = ["comms", "developer"];
-// Agents that run LAST — wait for ALL other siblings to complete (calls are confirmatory)
-const FINAL_STEP_AGENTS = ["call"];
+const DATA_CONSUMER_AGENTS = ["content", "outreach"];
+// Agents that run LAST — wait for ALL other siblings to complete
+const FINAL_STEP_AGENTS = ["analytics"];
 // NOTE: Approval gates disabled for hackathon demo.
 // To re-enable: wrap the action execution block below in an approval flow
-// and add back APPROVAL_AGENTS = ["comms", "call"]
+// and add back APPROVAL_AGENTS = ["outreach"]
 
 interface Agent {
   _id: Id<"agents">;
@@ -129,7 +129,7 @@ async function tick(client: ConvexHttpClient) {
   const agentByName = new Map(agents.map((a) => [a.name, a]));
 
   // Sort tasks: producers first, then consumers, then final-step agents.
-  // This ensures research always gets dispatched before comms/dev/call in the same tick.
+  // This ensures research always gets dispatched before content/outreach/analytics in the same tick.
   const sortedTasks = [...pendingTasks].sort((a, b) => {
     const agentA = a.agentId ? agentMap.get(a.agentId) : null;
     const agentB = b.agentId ? agentMap.get(b.agentId) : null;
@@ -158,11 +158,11 @@ async function tick(client: ConvexHttpClient) {
     // === DEPENDENCY CHECK ===
     // Three tiers of execution order:
     // 1. DATA_PRODUCER_AGENTS (research) — run immediately, no dependencies
-    // 2. DATA_CONSUMER_AGENTS (comms, developer) — wait for research findings
+    // 2. DATA_CONSUMER_AGENTS (content, outreach) — wait for research findings
     // 3. FINAL_STEP_AGENTS (call) — wait for ALL other siblings to complete
     if (task.parentTaskId) {
       if (FINAL_STEP_AGENTS.includes(agent.name)) {
-        // Call agent waits for ALL other siblings (research + comms + developer) to finish
+        // Analytics agent waits for ALL other siblings (research + content + outreach) to finish
         const allReady = await checkAllSiblingsComplete(client, task.parentTaskId, task._id);
         if (!allReady) {
           console.log(`[heartbeat] ${agent.name} waiting — not all siblings complete yet`);
@@ -199,7 +199,7 @@ async function tick(client: ConvexHttpClient) {
  * Returns true if findings ACTUALLY EXIST in the DB, OR if there is no research sibling.
  *
  * Previous bug: we only checked if the research task was "done", but findings
- * hadn't been written yet — so consumer agents (comms, developer) would start
+ * hadn't been written yet — so consumer agents (content, outreach) would start
  * before research data was available. Now we check for actual findings records.
  */
 async function checkSiblingFindings(
@@ -245,8 +245,8 @@ async function checkSiblingFindings(
 
 /**
  * Check if ALL non-final sibling tasks are complete (done or cancelled).
- * Used by FINAL_STEP_AGENTS (call) — they run last, after research AND comms/developer finish.
- * This ensures calls are confirmatory: the call agent has all findings + email drafts available.
+ * Used by FINAL_STEP_AGENTS (analytics) — runs last, after research AND content/outreach finish.
+ * This ensures analytics has all findings + content outputs available.
  */
 async function checkAllSiblingsComplete(
   client: ConvexHttpClient,
@@ -258,7 +258,7 @@ async function checkAllSiblingsComplete(
   // Check every sibling except ourself and other FINAL_STEP tasks
   for (const sibling of children) {
     if (sibling._id === currentTaskId) continue;
-    // Skip other final-step siblings (don't deadlock call agents waiting on each other)
+    // Skip other final-step siblings (don't deadlock analytics agents waiting on each other)
     // We can't resolve agent name without the map, so check by looking at the task
     // Instead, just check: is every non-self sibling done/cancelled?
     if (sibling.status !== "done" && sibling.status !== "cancelled") {
@@ -386,7 +386,7 @@ async function runAgentTask(
     // Developer agent uses Write tool to write files directly; this post-processes
     // the output to catch any code blocks with filename hints and report written paths.
     let finalOutput = result.output || "";
-    if (agent.name === "developer" && finalOutput) {
+    if (agent.name === "content" && finalOutput) {
       const writtenFiles = handleDeveloperOutput(finalOutput);
       if (writtenFiles.length > 0) {
         const fileList = writtenFiles.join(", ");
@@ -394,7 +394,7 @@ async function runAgentTask(
         await client.mutation(api.activity.log, {
           agentId: agent._id,
           action: "files_written",
-          content: `Developer wrote ${writtenFiles.length} file(s): ${fileList}`,
+          content: `Content agent wrote ${writtenFiles.length} file(s): ${fileList}`,
           taskId: task._id,
         });
       }
@@ -423,9 +423,9 @@ async function runAgentTask(
     }
 
     // === ACTION EXECUTION ===
-    // Comms and Call agents produce actionable output (emails, calls).
+    // Outreach agent produces actionable output (emails, calls).
     // Execute actions directly — no approval gates during hackathon demo.
-    if ((agent.name === "comms" || agent.name === "call") && finalOutput) {
+    if (agent.name === "outreach" && finalOutput) {
       const needsAction = detectApprovalNeeded(agent, task, finalOutput);
       if (needsAction) {
         console.log(`[heartbeat] Auto-executing ${needsAction.action} for ${agent.name}`);
@@ -884,7 +884,7 @@ Do NOT output any JSON. Speak directly to the user.`;
 }
 
 /**
- * Parse developer agent output for code blocks with filename hints.
+ * Parse content agent output for code blocks with filename hints.
  * Writes any unwritten files to the output/ directory and returns all
  * output/ paths that exist on disk (written by agent tool or by us).
  */
@@ -930,8 +930,8 @@ function handleDeveloperOutput(output: string): string[] {
 }
 
 /**
- * Parse a comms agent email draft into structured fields.
- * Matches the output format defined in agents/comms.md.
+ * Parse an outreach agent email draft into structured fields.
+ * Matches the output format defined in agents/outreach.md.
  */
 function parseEmailDraft(
   output: string
@@ -960,13 +960,23 @@ function detectApprovalNeeded(
   task: Task,
   output: string
 ): { action: string; details: string } | null {
-  if (agent.name === "comms") {
+  if (agent.name === "outreach") {
     // Trigger approval if the task involves sending OR the output has an email draft
     const isSendTask =
       task.input.toLowerCase().includes("send") ||
       output.toLowerCase().includes("ready to send") ||
       output.toLowerCase().includes("awaiting approval to send");
     const hasEmailDraft = /\*\*To:\*\*/.test(output) && /\*\*Subject:\*\*/.test(output);
+    const isCallTask =
+      task.input.toLowerCase().includes("call") ||
+      output.toLowerCase().includes("phone");
+
+    if (isCallTask) {
+      return {
+        action: "Make Phone Call",
+        details: output.substring(0, 500),
+      };
+    }
 
     if (isSendTask || hasEmailDraft) {
       const draft = parseEmailDraft(output);
@@ -975,14 +985,6 @@ function detectApprovalNeeded(
         : output.substring(0, 600);
       return { action: "Send Email", details };
     }
-  }
-
-  if (agent.name === "call") {
-    // All call agent actions require approval
-    return {
-      action: "Make Phone Call",
-      details: output.substring(0, 500),
-    };
   }
 
   return null;
@@ -1022,10 +1024,12 @@ function appendToCompanyMemory(agent: Agent, task: Task, output: string) {
     let section: string;
     if (agent.name === "research") {
       section = "Learnings";
-    } else if (agent.name === "comms") {
-      section = "Communications";
-    } else if (agent.name === "developer") {
-      section = "Built";
+    } else if (agent.name === "content") {
+      section = "Content";
+    } else if (agent.name === "outreach") {
+      section = "Outreach";
+    } else if (agent.name === "analytics") {
+      section = "Analytics";
     } else {
       section = "Activity";
     }
@@ -1064,7 +1068,7 @@ function appendToCompanyMemory(agent: Agent, task: Task, output: string) {
  * Developer agent producing HTML gets "html", everything else defaults to "markdown".
  */
 function detectOutputFormat(agentName: string, output: string): "text" | "markdown" | "html" {
-  if (agentName === "developer") {
+  if (agentName === "content") {
     // If output contains HTML structure, mark as html
     if (output.includes("<!DOCTYPE") || output.includes("<html") || output.includes("<body")) {
       return "html";
@@ -1082,7 +1086,7 @@ function detectOutputFiles(
   agentName: string,
   output: string
 ): Array<{ name: string; url: string; mimeType: string }> {
-  if (agentName !== "developer") return [];
+  if (agentName !== "content") return [];
 
   const files: Array<{ name: string; url: string; mimeType: string }> = [];
   const pathPattern = /output\/[\w.\-/]+\.\w+/g;
@@ -1134,22 +1138,27 @@ function getAgentTools(agentName: string): string[] {
         "WebSearch",
         "WebFetch",
       ];
-    case "comms":
-      // Comms reads files for context
-      return ["Read", "Write"];
-    case "developer":
-      // Developer reads and writes code files
+    case "content":
+      // Content agent reads research and writes content files
       return [
         "Read",
         "Write",
         "Edit",
         "Bash(mkdir*)",
       ];
-    case "call":
-      // Call agent can run call scripts
+    case "outreach":
+      // Outreach agent sends emails and makes calls
       return [
         "Read",
+        "Write",
         "Bash(npx tsx skills/*)",
+      ];
+    case "analytics":
+      // Analytics agent reads data and produces reports
+      return [
+        "Read",
+        "WebSearch",
+        "WebFetch",
       ];
     default:
       return ["Read"];
