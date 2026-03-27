@@ -352,22 +352,31 @@ export function TasksPage() {
             {topLevel.map((task, i) => {
               const children = childMap.get(task._id)?.filter((c) => !c.input.includes("[SYNTHESIS]")) ?? [];
               const isSelected = selectedTaskId === task._id;
+              // Also expand children if a child of this parent is currently selected
+              const hasSelectedChild = children.some((c) => c._id === selectedTaskId);
+              const isExpanded = isSelected || hasSelectedChild;
               const isLast = i === topLevel.length - 1;
+
+              // Effective status: if parent is "done" but children are still running, show as in_progress
+              const effectiveTask = children.length > 0 && task.status === "done"
+                && children.some((c) => c.status !== "done" && c.status !== "cancelled")
+                ? { ...task, status: "in_progress" as const }
+                : task;
 
               return (
                 <div key={task._id}>
                   <TaskRow
-                    task={task}
+                    task={effectiveTask}
                     agent={task.agentId ? agentMap.get(task.agentId) ?? null : null}
                     childCount={children.length}
-                    isSelected={isSelected}
+                    isSelected={isExpanded}
                     onSelect={() => setSelectedTaskId(isSelected ? null : task._id)}
                     isLast={isLast}
                     compact={!!selectedTask}
                   />
 
-                  {/* Always show subtasks inline when task is selected */}
-                  {isSelected && children.length > 0 && (
+                  {/* Show subtasks when parent or any child is selected */}
+                  {isExpanded && children.length > 0 && (
                     <div className="bg-muted/30">
                       {children.map((child, ci) => (
                         <TaskRow
@@ -376,7 +385,7 @@ export function TasksPage() {
                           agent={child.agentId ? agentMap.get(child.agentId) ?? null : null}
                           childCount={0}
                           isSelected={selectedTaskId === child._id}
-                          onSelect={() => setSelectedTaskId(child._id)}
+                          onSelect={() => setSelectedTaskId(selectedTaskId === child._id ? task._id : child._id)}
                           isChild
                           isLast={ci === children.length - 1 && isLast}
                           compact={!!selectedTask}

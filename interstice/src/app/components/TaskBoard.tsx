@@ -63,8 +63,12 @@ export function TaskBoard() {
       <div className="p-3 space-y-2">
         {topLevel.map((task) => {
           const agent    = task.agentId ? agentMap.get(task.agentId) : null;
-          const cfg      = statusConfig[task.status as keyof typeof statusConfig] ?? statusConfig.pending;
           const children = childMap.get(task._id)?.filter((c) => !c.input.includes("[SYNTHESIS]")) ?? [];
+          // Effective status: parent shows in_progress while any child is still running
+          const effectiveStatus = children.length > 0 && task.status === "done"
+            && children.some((c) => c.status !== "done" && c.status !== "cancelled")
+            ? "in_progress" : task.status;
+          const cfg      = statusConfig[effectiveStatus as keyof typeof statusConfig] ?? statusConfig.pending;
           const StatusIcon = cfg.icon;
 
           const displayInput = task.title || task.input
@@ -78,11 +82,11 @@ export function TaskBoard() {
               <div className="px-3 py-2.5">
                 <div className="flex items-start gap-2.5">
                   <StatusIcon className={cn("w-4 h-4 shrink-0 mt-0.5", {
-                    "text-stone-400": task.status === "pending",
-                    "text-blue-600": task.status === "in_progress",
-                    "text-amber-600": task.status === "pending_approval",
-                    "text-green-600": task.status === "done",
-                    "text-red-600": task.status === "cancelled",
+                    "text-stone-400": effectiveStatus === "pending",
+                    "text-blue-600": effectiveStatus === "in_progress",
+                    "text-amber-600": effectiveStatus === "pending_approval",
+                    "text-green-600": effectiveStatus === "done",
+                    "text-red-600": effectiveStatus === "cancelled",
                   })} />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-foreground line-clamp-2 leading-relaxed">{displayInput}</p>
