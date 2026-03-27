@@ -109,6 +109,38 @@ function TaskCard({
   );
 }
 
+/* ─── Subtask Row — compact child task ───────────────────────── */
+function SubtaskRow({
+  task,
+  agent,
+  onClick,
+}: {
+  task: { _id: string; input: string; title?: string; status: string; _creationTime: number };
+  agent: { role: string; name: string } | null;
+  onClick: () => void;
+}) {
+  const status = (task.status ?? "pending") as TaskStatus;
+  const sc = statusConfig[status] ?? statusConfig.pending;
+  const cfg = agent ? agentConfig[agent.role] : null;
+  const displayText = task.title || cleanInput(task.input);
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors cursor-pointer"
+    >
+      <span className={cn("w-2 h-2 rounded-full shrink-0", sc.dot)} />
+      {cfg?.avatar && (
+        <img src={cfg.avatar} alt={cfg.label} className="w-5 h-5 rounded-full object-cover shrink-0" />
+      )}
+      <p className="text-[11px] text-stone-600 leading-tight line-clamp-1 flex-1 min-w-0">{displayText}</p>
+      <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0", sc.bg, sc.text)}>
+        {sc.label}
+      </span>
+    </button>
+  );
+}
+
 /* ─── Create Task Modal (matches TasksPage) ─────────────────── */
 type TaskPriority = "low" | "medium" | "high" | "critical";
 
@@ -232,20 +264,31 @@ export default function Dashboard() {
     [agents],
   );
 
-  // All tasks sorted: active first, then recent done — max 7
-  const displayTasks = useMemo(() => {
+  // Build hierarchical task tree: parents with children nested
+  const taskTree = useMemo(() => {
     if (!tasks) return [];
-    const active = tasks
-      .filter(t => t.status !== "done" && t.status !== "cancelled")
-      .sort((a, b) => {
-        const order: Record<string, number> = { in_progress: 0, pending_approval: 1, pending: 2 };
-        return (order[a.status] ?? 3) - (order[b.status] ?? 3);
-      });
-    const done = tasks
-      .filter(t => t.status === "done")
-      .sort((a, b) => b._creationTime - a._creationTime)
-      .slice(0, 3);
-    return [...active, ...done].slice(0, 7);
+    // Group children by parentTaskId
+    const childMap = new Map<string, typeof tasks>();
+    const parents: typeof tasks = [];
+    for (const t of tasks) {
+      if (t.parentTaskId) {
+        const list = childMap.get(t.parentTaskId) ?? [];
+        list.push(t);
+        childMap.set(t.parentTaskId, list);
+      } else {
+        parents.push(t);
+      }
+    }
+    // Sort parents: active first, then done
+    const sortOrder: Record<string, number> = { in_progress: 0, pending_approval: 1, pending: 2, done: 3, cancelled: 4 };
+    parents.sort((a, b) => (sortOrder[a.status] ?? 3) - (sortOrder[b.status] ?? 3));
+    // Build tree entries, max 7 top-level
+    const tree: Array<{ parent: (typeof tasks)[0]; children: typeof tasks }> = [];
+    for (const p of parents.slice(0, 7)) {
+      const children = (childMap.get(p._id) ?? []).sort((a, b) => (sortOrder[a.status] ?? 3) - (sortOrder[b.status] ?? 3));
+      tree.push({ parent: p, children });
+    }
+    return tree;
   }, [tasks]);
 
   return (
@@ -265,9 +308,9 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <CircleDot className="w-4 h-4 text-stone-400" />
               <span className="text-xs font-semibold text-foreground">Tasks</span>
-              {displayTasks.length > 0 && (
+              {taskTree.length > 0 && (
                 <span className="text-[10px] font-medium text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded-full tabular-nums">
-                  {displayTasks.length}
+                  {taskTree.length}
                 </span>
               )}
             </div>
@@ -294,22 +337,35 @@ export default function Dashboard() {
             />
           )}
 
-          {/* Task list — spacious, max 7, clickable */}
+          {/* Task list — hierarchical, clickable */}
           <div className="flex-1 overflow-auto p-3 space-y-2">
-            {displayTasks.length === 0 ? (
+            {taskTree.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
                 <Zap className="w-8 h-8 text-stone-200 mb-2" />
                 <p className="text-xs text-stone-400 font-medium">No tasks yet</p>
                 <p className="text-[10px] text-stone-300 mt-0.5">Give your team a command to get started</p>
               </div>
             ) : (
-              displayTasks.map(t => (
-                <TaskCard
-                  key={t._id}
-                  task={t}
-                  agent={t.agentId ? agentMap.get(t.agentId) ?? null : null}
-                  onClick={() => navigate("tasks")}
-                />
+              taskTree.map(({ parent, children }) => (
+                <div key={parent._id}>
+                  <TaskCard
+                    task={parent}
+                    agent={parent.agentId ? agentMap.get(parent.agentId) ?? null : null}
+                    onClick={() => navigate("tasks")}
+                  />
+                  {children.length > 0 && (
+                    <div className="ml-6 mt-1 space-y-1 border-l-2 border-stone-100 pl-3">
+                      {children.map(child => (
+                        <SubtaskRow
+                          key={child._id}
+                          task={child}
+                          agent={child.agentId ? agentMap.get(child.agentId) ?? null : null}
+                          onClick={() => navigate("tasks")}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))
             )}
           </div>

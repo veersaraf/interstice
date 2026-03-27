@@ -567,7 +567,7 @@ export function GameWorld() {
             key={agent._id}
             agent={agent}
             position={pos}
-            recentMessage={speechBubbles[agent.role]}
+            recentMessage={undefined}
             isCommunicating={communicatingRoles.has(agent.role)}
           />
         );

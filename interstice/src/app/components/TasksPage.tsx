@@ -352,9 +352,9 @@ export function TasksPage() {
             {topLevel.map((task, i) => {
               const children = childMap.get(task._id)?.filter((c) => !c.input.includes("[SYNTHESIS]")) ?? [];
               const isSelected = selectedTaskId === task._id;
-              // Also expand children if a child of this parent is currently selected
               const hasSelectedChild = children.some((c) => c._id === selectedTaskId);
-              const isExpanded = isSelected || hasSelectedChild;
+              // Always show subtasks when they exist
+              const isExpanded = children.length > 0 || isSelected || hasSelectedChild;
               const isLast = i === topLevel.length - 1;
 
               // Effective status: if parent is "done" but children are still running, show as in_progress
