@@ -67,7 +67,7 @@ export function TaskBoard() {
           const children = childMap.get(task._id)?.filter((c) => !c.input.includes("[SYNTHESIS]")) ?? [];
           const StatusIcon = cfg.icon;
 
-          const displayInput = task.input
+          const displayInput = task.title || task.input
             .replace(/\[OMI_UID:[^\]]+\]/g, "")
             .replace(/\[SYNTHESIS\]/g, "")
             .trim();

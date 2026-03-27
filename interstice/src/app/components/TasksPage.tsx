@@ -19,6 +19,9 @@ import {
   Send,
   User,
   CheckCircle2,
+  Plus,
+  Flag,
+  UserCircle,
 } from "lucide-react";
 import { useState, useMemo, useCallback, useRef } from "react";
 import { Badge } from "../../components/ui/badge";
@@ -49,6 +52,15 @@ const roleColors: Record<string, { text: string; bg: string }> = {
 
 const roleAvatar: Record<string, string> = {
   CEO: "/avatars/ceo.png", Research: "/avatars/research.png", Communications: "/avatars/communications.png", Developer: "/avatars/developer.png", Call: "/avatars/call.png",
+};
+
+type TaskPriority = "low" | "medium" | "high" | "critical";
+
+const priorityMeta: Record<TaskPriority, { label: string; color: string; bg: string; icon: string }> = {
+  critical: { label: "Critical", color: "text-red-700", bg: "bg-red-50 border-red-200", icon: "🔴" },
+  high:     { label: "High",     color: "text-orange-700", bg: "bg-orange-50 border-orange-200", icon: "🟠" },
+  medium:   { label: "Medium",   color: "text-amber-700", bg: "bg-amber-50 border-amber-200", icon: "🟡" },
+  low:      { label: "Low",      color: "text-stone-500", bg: "bg-stone-50 border-stone-200", icon: "⚪" },
 };
 
 type FilterPreset = "all" | "active" | "done";
@@ -153,6 +165,7 @@ export function TasksPage() {
   const [sortField, setSortField] = useState<SortField>("created");
   const [sortAsc, setSortAsc] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   /* ---- data transforms ---- */
   const agentMap = useMemo(
@@ -181,9 +194,10 @@ export function TasksPage() {
       const q = search.toLowerCase();
       result = result.filter((t) => {
         const input = cleanInput(t.input).toLowerCase();
+        const titleText = (t.title ?? "").toLowerCase();
         const agent = t.agentId ? agentMap.get(t.agentId) : null;
         const roleName = agent?.role?.toLowerCase() ?? "";
-        return input.includes(q) || roleName.includes(q);
+        return input.includes(q) || titleText.includes(q) || roleName.includes(q);
       });
     }
 
@@ -257,7 +271,23 @@ export function TasksPage() {
             <h1 className="text-sm font-semibold text-foreground">Tasks</h1>
             <span className="text-[11px] text-muted-foreground tabular-nums">{counts.all}</span>
           </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="h-8 px-3 rounded-xl bg-primary text-white text-xs font-medium flex items-center gap-1.5 hover:bg-primary/90 transition-colors shadow-sm btn-retro"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Task
+          </button>
         </div>
+
+        {/* ---- Create Task Modal ---- */}
+        {showCreateModal && agents && (
+          <CreateTaskModal
+            agents={agents}
+            tasks={tasks ?? []}
+            onClose={() => setShowCreateModal(false)}
+          />
+        )}
 
         {/* ---- Toolbar: search + filters ---- */}
         <div className="flex items-center gap-2 mb-3">
@@ -386,6 +416,8 @@ interface TaskRowProps {
     _creationTime: number;
     status: string;
     input: string;
+    title?: string;
+    priority?: string;
     output?: string;
     agentId?: string;
     startedAt?: number;
@@ -405,7 +437,9 @@ function TaskRow({ task, agent, childCount, isSelected, onSelect, isChild, isLas
   const meta = statusMeta[status] ?? statusMeta.pending;
   const role = agent?.role ?? "";
   const rc = roleColors[role];
-  const displayText = cleanInput(task.input);
+  const displayText = task.title || cleanInput(task.input);
+  const priority = (task.priority as TaskPriority) || undefined;
+  const pm = priority ? priorityMeta[priority] : undefined;
 
   const timestamp = task.completedAt ?? task.startedAt ?? task._creationTime;
 
@@ -445,6 +479,13 @@ function TaskRow({ task, agent, childCount, isSelected, onSelect, isChild, isLas
       )}>
         {displayText.length > (compact ? 60 : 120) ? displayText.slice(0, compact ? 60 : 120) + "…" : displayText}
       </span>
+
+      {/* Priority indicator */}
+      {pm && !isChild && !compact && (
+        <span className={cn("shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border", pm.bg, pm.color)}>
+          {pm.label}
+        </span>
+      )}
 
       {/* Agent badge */}
       {agent && !compact && (
@@ -510,6 +551,9 @@ interface TaskDetailPanelProps {
     _creationTime: number;
     status: string;
     input: string;
+    title?: string;
+    description?: string;
+    priority?: string;
     output?: string;
     agentId?: string;
     parentTaskId?: string;
@@ -523,6 +567,8 @@ interface TaskDetailPanelProps {
     _creationTime: number;
     status: string;
     input: string;
+    title?: string;
+    priority?: string;
     output?: string;
     agentId?: string;
     startedAt?: number;
@@ -535,14 +581,20 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
   const activity = useQuery(api.activity.getByTask, { taskId });
   const addComment = useMutation(api.activity.addUserComment);
   const updateStatus = useMutation(api.tasks.updateStatus);
+  const reassignTask = useMutation(api.tasks.reassign);
+  const updatePriority = useMutation(api.tasks.updatePriority);
   const status = task.status as TaskStatus;
   const meta = statusMeta[status] ?? statusMeta.pending;
   const role = agent?.role ?? "";
   const rc = roleColors[role];
+  const priority = (task.priority as TaskPriority) || undefined;
+  const pm = priority ? priorityMeta[priority] : undefined;
 
   const [commentText, setCommentText] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [assignMenuOpen, setAssignMenuOpen] = useState(false);
+  const [priorityMenuOpen, setPriorityMenuOpen] = useState(false);
 
   const handleStatusChange = async (newStatus: "pending" | "in_progress" | "done") => {
     setStatusMenuOpen(false);
@@ -618,25 +670,100 @@ function TaskDetailPanel({ taskId, task, agent, agentMap, childTasks, onClose }:
           </button>
         </div>
 
-        {/* Task description */}
-        <p className="text-sm font-medium text-foreground leading-relaxed mb-2">
-          {cleanInput(task.input)}
+        {/* Task title / description */}
+        <p className="text-sm font-medium text-foreground leading-relaxed mb-1">
+          {task.title || cleanInput(task.input)}
         </p>
+        {task.title && task.description && (
+          <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+            {task.description}
+          </p>
+        )}
 
-        {/* Meta row — agent + timestamps inline */}
-        <div className="flex items-center gap-2.5 flex-wrap text-[10px] text-muted-foreground">
-          {agent && (
-            <span
+        {/* Meta row — agent + priority + timestamps */}
+        <div className="flex items-center gap-2 flex-wrap text-[10px] text-muted-foreground mt-2">
+          {/* Agent assign/reassign */}
+          <div className="relative">
+            <button
+              onClick={() => setAssignMenuOpen(!assignMenuOpen)}
               className={cn(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold",
-                rc?.bg ?? "bg-stone-50",
-                rc?.text ?? "text-stone-600"
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors cursor-pointer",
+                agent
+                  ? cn(rc?.bg ?? "bg-stone-50", rc?.text ?? "text-stone-600", "border-transparent hover:border-stone-300")
+                  : "bg-stone-50 text-stone-400 border-dashed border-stone-300 hover:bg-stone-100"
               )}
             >
-              <img src={roleAvatar[role] ?? ""} alt={role} className="w-3.5 h-3.5 rounded-full object-cover" />
-              {role}
-            </span>
-          )}
+              {agent ? (
+                <>
+                  <img src={roleAvatar[role] ?? ""} alt={role} className="w-3.5 h-3.5 rounded-full object-cover" />
+                  {role}
+                </>
+              ) : (
+                <>
+                  <UserCircle className="w-3 h-3" />
+                  Unassigned
+                </>
+              )}
+            </button>
+            {assignMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[160px]">
+                <button
+                  onClick={() => { reassignTask({ taskId, agentId: undefined }); setAssignMenuOpen(false); }}
+                  className={cn("w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors hover:bg-secondary", !agent && "bg-primary/5 font-semibold")}
+                >
+                  <UserCircle className="w-3.5 h-3.5 text-stone-400" />
+                  Unassigned
+                </button>
+                {[...agentMap.values()].map((a) => {
+                  const aRc = roleColors[a.role];
+                  return (
+                    <button
+                      key={a._id}
+                      onClick={() => { reassignTask({ taskId, agentId: a._id as Id<"agents"> }); setAssignMenuOpen(false); }}
+                      className={cn("w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors hover:bg-secondary", agent?._id === a._id && "bg-primary/5 font-semibold")}
+                    >
+                      <img src={roleAvatar[a.role] ?? ""} alt={a.role} className="w-4 h-4 rounded-full object-cover" />
+                      <span className={aRc?.text ?? "text-stone-600"}>{a.role}</span>
+                      {agent?._id === a._id && <CheckCircle2 className="w-3 h-3 ml-auto text-primary" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Priority selector */}
+          <div className="relative">
+            <button
+              onClick={() => setPriorityMenuOpen(!priorityMenuOpen)}
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors cursor-pointer",
+                pm ? cn(pm.bg, pm.color) : "bg-stone-50 text-stone-400 border-stone-200 hover:bg-stone-100"
+              )}
+            >
+              <Flag className="w-3 h-3" />
+              {pm?.label ?? "Priority"}
+            </button>
+            {priorityMenuOpen && (
+              <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[130px]">
+                {(["critical", "high", "medium", "low"] as TaskPriority[]).map((p) => {
+                  const pMeta = priorityMeta[p];
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => { updatePriority({ taskId, priority: p }); setPriorityMenuOpen(false); }}
+                      className={cn("w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors hover:bg-secondary", priority === p && "bg-primary/5 font-semibold")}
+                    >
+                      <span>{pMeta.icon}</span>
+                      <span className={pMeta.color}>{pMeta.label}</span>
+                      {priority === p && <CheckCircle2 className="w-3 h-3 ml-auto text-primary" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <span className="inline-flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {timeAgo(task._creationTime)}
@@ -1195,6 +1322,162 @@ function simpleMarkdownToHtml(md: string): string {
     .replace(/\n\n/g, "</p><p>")
     .replace(/\n/g, "<br>")
     .replace(/^(.+)/, "<p>$1</p>");
+}
+
+/* ------------------------------------------------------------------ */
+/*  CreateTaskModal — create task from dashboard                       */
+/* ------------------------------------------------------------------ */
+
+function CreateTaskModal({
+  agents,
+  tasks,
+  onClose,
+}: {
+  agents: Array<{ _id: string; role: string; name: string }>;
+  tasks: Array<{ _id: string; input: string; title?: string; parentTaskId?: string }>;
+  onClose: () => void;
+}) {
+  const createManual = useMutation(api.tasks.createManual);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [agentId, setAgentId] = useState<string>("");
+  const [parentTaskId, setParentTaskId] = useState<string>("");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [submitting, setSubmitting] = useState(false);
+
+  const topLevelTasks = tasks.filter((t) => !t.parentTaskId && !t.input.includes("[SYNTHESIS]"));
+
+  const handleSubmit = async () => {
+    if (!title.trim()) return;
+    setSubmitting(true);
+    try {
+      await createManual({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        agentId: agentId ? (agentId as Id<"agents">) : undefined,
+        parentTaskId: parentTaskId ? (parentTaskId as Id<"tasks">) : undefined,
+        priority,
+      });
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">Create Task</h2>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <div className="px-5 py-4 space-y-3">
+          {/* Title */}
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Title</label>
+            <input
+              autoFocus
+              type="text"
+              placeholder="What needs to be done?"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && title.trim()) handleSubmit(); }}
+              className="w-full h-9 px-3 rounded-lg border border-border bg-transparent text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Description</label>
+            <textarea
+              placeholder="Details, context, or instructions for the agent..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-transparent text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            />
+          </div>
+
+          {/* Agent + Priority row */}
+          <div className="flex gap-3">
+            {/* Agent */}
+            <div className="flex-1">
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Assign to</label>
+              <select
+                value={agentId}
+                onChange={(e) => setAgentId(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-transparent text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Unassigned</option>
+                {agents.map((a) => (
+                  <option key={a._id} value={a._id}>{a.role} — {a.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Priority */}
+            <div className="w-32">
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Priority</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-transparent text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {(["critical", "high", "medium", "low"] as TaskPriority[]).map((p) => (
+                  <option key={p} value={p}>{priorityMeta[p].icon} {priorityMeta[p].label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Parent task */}
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Parent task (optional)</label>
+            <select
+              value={parentTaskId}
+              onChange={(e) => setParentTaskId(e.target.value)}
+              className="w-full h-9 px-3 rounded-lg border border-border bg-transparent text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">None (top-level)</option>
+              {topLevelTasks.map((t) => (
+                <option key={t._id} value={t._id}>{(t.title || cleanInput(t.input)).slice(0, 60)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30">
+          <button
+            onClick={onClose}
+            className="h-8 px-4 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!title.trim() || submitting}
+            className={cn(
+              "h-8 px-4 rounded-xl text-xs font-medium transition-colors shadow-sm",
+              title.trim() && !submitting
+                ? "bg-primary text-white hover:bg-primary/90 btn-retro"
+                : "bg-secondary text-muted-foreground cursor-not-allowed"
+            )}
+          >
+            {submitting ? "Creating..." : "Create Task"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
