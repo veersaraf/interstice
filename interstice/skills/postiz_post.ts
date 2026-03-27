@@ -7,7 +7,7 @@
  *
  * Required env vars in .env.local:
  *   POSTIZ_API_KEY        — Postiz API key
- *   POSTIZ_API_URL        — Postiz API URL (default: https://app.postiz.com/api)
+ *   POSTIZ_API_URL        — Postiz API URL (default: https://api.postiz.com/public/v1)
  *   POSTIZ_INTEGRATION_ID — Postiz integration/channel ID for posting
  */
 
@@ -15,7 +15,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 const POSTIZ_API_KEY = process.env.POSTIZ_API_KEY;
-const POSTIZ_API_URL = process.env.POSTIZ_API_URL || "https://app.postiz.com/api";
+const POSTIZ_API_URL = process.env.POSTIZ_API_URL || "https://api.postiz.com/public/v1";
 const POSTIZ_INTEGRATION_ID = process.env.POSTIZ_INTEGRATION_ID;
 
 interface PostizResult {

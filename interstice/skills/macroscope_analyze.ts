@@ -3,11 +3,18 @@
  *
  * Usage from CLI: npx tsx skills/macroscope_analyze.ts "owner/repo"
  *
- * Analyzes a GitHub repo via Macroscope and returns structured
- * product understanding (tech stack, features, architecture).
+ * NOTE: Macroscope operates as a GitHub App, not a REST API.
+ * The domain api.macroscope.com does not resolve — there is no public REST API.
+ * To use Macroscope, install the GitHub App (github.com/apps/macroscopeapp)
+ * and interact via Slack, Linear, or webhook triggers.
+ * See: https://docs.macroscope.com
+ *
+ * This skill currently attempts REST API calls which will fail.
+ * It needs to be reworked to use Macroscope's webhook/trigger API
+ * or the GitHub App integration once board confirms the approach.
  *
  * Required env vars in .env.local:
- *   MACROSCOPE_API_KEY — Macroscope API key
+ *   MACROSCOPE_API_KEY — Macroscope API key (used for webhook auth)
  */
 
 import { config } from "dotenv";
