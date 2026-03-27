@@ -71,7 +71,7 @@ export async function createPost(
   const response = await fetch(`${POSTIZ_API_URL}/posts`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${POSTIZ_API_KEY}`,
+      Authorization: POSTIZ_API_KEY!,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -117,9 +117,13 @@ export async function listPosts(): Promise<{ success: boolean; posts?: unknown[]
     return { success: false, message: "ERROR: POSTIZ_API_KEY not set in .env.local" };
   }
 
-  const response = await fetch(`${POSTIZ_API_URL}/posts`, {
-    headers: { Authorization: `Bearer ${POSTIZ_API_KEY}` },
-  });
+  const now = new Date();
+  const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const end = now.toISOString();
+  const response = await fetch(
+    `${POSTIZ_API_URL}/posts?startDate=${start}&endDate=${end}`,
+    { headers: { Authorization: POSTIZ_API_KEY! } },
+  );
 
   if (!response.ok) {
     const errorText = await response.text();
