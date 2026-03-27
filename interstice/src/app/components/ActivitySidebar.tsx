@@ -20,9 +20,9 @@ import {
 const agentConfig: Record<string, { color: string; avatar: string; label: string }> = {
   CEO:            { color: "text-amber-700",  avatar: "/avatars/ceo.png",            label: "CEO" },
   Research:       { color: "text-blue-700",   avatar: "/avatars/research.png",       label: "Research" },
-  Communications: { color: "text-purple-700", avatar: "/avatars/communications.png", label: "Comms" },
-  Developer:      { color: "text-green-700",  avatar: "/avatars/developer.png",      label: "Dev" },
-  Call:           { color: "text-orange-700",  avatar: "/avatars/call.png",           label: "Call" },
+  Content:        { color: "text-purple-700", avatar: "/avatars/content.png",        label: "Content" },
+  Outreach:       { color: "text-orange-700", avatar: "/avatars/outreach.png",       label: "Outreach" },
+  Analytics:      { color: "text-cyan-700",   avatar: "/avatars/analytics.png",      label: "Analytics" },
 };
 
 const NOISY_ACTIONS = new Set(["delegation_complete", "task_started", "synthesis_triggered"]);

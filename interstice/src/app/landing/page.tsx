@@ -99,9 +99,9 @@ export default function LandingPage() {
             {[
               ["CEO", "Delegates, monitors, synthesizes"],
               ["Research", "Web search, competitive analysis"],
-              ["Communications", "Email drafts, outreach"],
-              ["Developer", "Code generation, landing pages"],
-              ["Call Agent", "Real phone calls via ElevenLabs"],
+              ["Content", "Blog posts, social copy, landing pages"],
+              ["Outreach", "Email campaigns, investor outreach"],
+              ["Analytics", "Data analysis, market insights, reporting"],
             ].map(([role, desc]) => (
               <div key={role}>
                 <p className="text-[16px] font-bold text-stone-800">{role}</p>

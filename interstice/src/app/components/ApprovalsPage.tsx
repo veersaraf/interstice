@@ -12,13 +12,13 @@ import { Button } from "../../components/ui/button";
 const roleColors: Record<string, string> = {
   CEO:            "text-amber-700",
   Research:       "text-blue-700",
-  Communications: "text-purple-700",
-  Developer:      "text-emerald-700",
-  Call:           "text-orange-700",
+  Content:        "text-purple-700",
+  Outreach:       "text-orange-700",
+  Analytics:      "text-cyan-700",
 };
 
 const roleAvatar: Record<string, string> = {
-  CEO: "/avatars/ceo.png", Research: "/avatars/research.png", Communications: "/avatars/communications.png", Developer: "/avatars/developer.png", Call: "/avatars/call.png",
+  CEO: "/avatars/ceo.png", Research: "/avatars/research.png", Content: "/avatars/content.png", Outreach: "/avatars/outreach.png", Analytics: "/avatars/analytics.png",
 };
 
 export function ApprovalsPage() {

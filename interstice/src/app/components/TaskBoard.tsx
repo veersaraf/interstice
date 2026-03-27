@@ -18,9 +18,9 @@ const statusConfig = {
 const roleColors: Record<string, string> = {
   CEO:            "text-amber-700",
   Research:       "text-blue-700",
-  Communications: "text-purple-700",
-  Developer:      "text-emerald-700",
-  Call:           "text-orange-700",
+  Content:        "text-purple-700",
+  Outreach:       "text-orange-700",
+  Analytics:      "text-cyan-700",
 };
 
 export function TaskBoard() {

@@ -22,9 +22,9 @@ import ReactMarkdown from "react-markdown";
 const agentConfig: Record<string, { avatar: string; color: string; bg: string; label: string }> = {
   CEO:            { avatar: "/avatars/ceo.png",            color: "text-amber-700",   bg: "bg-amber-50",   label: "CEO" },
   Research:       { avatar: "/avatars/research.png",       color: "text-blue-700",    bg: "bg-blue-50",    label: "Research" },
-  Communications: { avatar: "/avatars/communications.png", color: "text-purple-700",  bg: "bg-purple-50",  label: "Comms" },
-  Developer:      { avatar: "/avatars/developer.png",      color: "text-emerald-700", bg: "bg-emerald-50", label: "Dev" },
-  Call:           { avatar: "/avatars/call.png",           color: "text-orange-700",  bg: "bg-orange-50",  label: "Call" },
+  Content:        { avatar: "/avatars/content.png",        color: "text-purple-700",  bg: "bg-purple-50",  label: "Content" },
+  Outreach:       { avatar: "/avatars/outreach.png",       color: "text-orange-700",  bg: "bg-orange-50",  label: "Outreach" },
+  Analytics:      { avatar: "/avatars/analytics.png",      color: "text-cyan-700",    bg: "bg-cyan-50",    label: "Analytics" },
 };
 
 /* ─── Parse CEO JSON into readable delegation ─────────────────── */

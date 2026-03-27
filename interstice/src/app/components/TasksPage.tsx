@@ -45,13 +45,13 @@ const statusMeta: Record<TaskStatus, { label: string; dotColor: string; bgColor:
 const roleColors: Record<string, { text: string; bg: string }> = {
   CEO:            { text: "text-amber-700",   bg: "bg-amber-50" },
   Research:       { text: "text-blue-700",    bg: "bg-blue-50" },
-  Communications: { text: "text-purple-700",  bg: "bg-purple-50" },
-  Developer:      { text: "text-emerald-700", bg: "bg-emerald-50" },
-  Call:           { text: "text-orange-700",  bg: "bg-orange-50" },
+  Content:        { text: "text-purple-700",  bg: "bg-purple-50" },
+  Outreach:       { text: "text-orange-700",  bg: "bg-orange-50" },
+  Analytics:      { text: "text-cyan-700",    bg: "bg-cyan-50" },
 };
 
 const roleAvatar: Record<string, string> = {
-  CEO: "/avatars/ceo.png", Research: "/avatars/research.png", Communications: "/avatars/communications.png", Developer: "/avatars/developer.png", Call: "/avatars/call.png",
+  CEO: "/avatars/ceo.png", Research: "/avatars/research.png", Content: "/avatars/content.png", Outreach: "/avatars/outreach.png", Analytics: "/avatars/analytics.png",
 };
 
 type TaskPriority = "low" | "medium" | "high" | "critical";

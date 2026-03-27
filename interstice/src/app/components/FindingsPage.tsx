@@ -21,25 +21,25 @@ import ReactMarkdown from "react-markdown";
 const roleColors: Record<string, string> = {
   CEO: "text-amber-700",
   Research: "text-blue-700",
-  Communications: "text-purple-700",
-  Developer: "text-emerald-700",
-  Call: "text-orange-700",
+  Content: "text-purple-700",
+  Outreach: "text-orange-700",
+  Analytics: "text-cyan-700",
 };
 
 const roleDimBg: Record<string, string> = {
   CEO: "bg-amber-50",
   Research: "bg-blue-50",
-  Communications: "bg-purple-50",
-  Developer: "bg-emerald-50",
-  Call: "bg-orange-50",
+  Content: "bg-purple-50",
+  Outreach: "bg-orange-50",
+  Analytics: "bg-cyan-50",
 };
 
 const roleAvatar: Record<string, string> = {
   CEO: "/avatars/ceo.png",
   Research: "/avatars/research.png",
-  Communications: "/avatars/communications.png",
-  Developer: "/avatars/developer.png",
-  Call: "/avatars/call.png",
+  Content: "/avatars/content.png",
+  Outreach: "/avatars/outreach.png",
+  Analytics: "/avatars/analytics.png",
 };
 
 function detectOutputFormat(output: string): "markdown" | "html" | "text" {

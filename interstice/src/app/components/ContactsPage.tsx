@@ -157,7 +157,7 @@ export function ContactsPage() {
               <Users className="w-6 h-6 text-primary" />
             </div>
             <p className="text-sm font-medium text-foreground mb-1">No contacts yet</p>
-            <p className="text-xs text-muted-foreground">Add contacts for your Call Agent to reach out to.</p>
+            <p className="text-xs text-muted-foreground">Add contacts for your Outreach Agent to reach out to.</p>
           </div>
         ) : (
           <div className="divide-y divide-border">

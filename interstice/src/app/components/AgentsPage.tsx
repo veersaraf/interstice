@@ -13,9 +13,9 @@ import { Button } from "../../components/ui/button";
 const roleConfig: Record<string, { avatar: string; color: string; dimBg: string; ring: string }> = {
   CEO:            { avatar: "/avatars/ceo.png",            color: "text-amber-700",   dimBg: "bg-amber-50",   ring: "ring-amber-300" },
   Research:       { avatar: "/avatars/research.png",       color: "text-blue-700",    dimBg: "bg-blue-50",    ring: "ring-blue-300" },
-  Communications: { avatar: "/avatars/communications.png", color: "text-purple-700",  dimBg: "bg-purple-50",  ring: "ring-purple-300" },
-  Developer:      { avatar: "/avatars/developer.png",      color: "text-emerald-700", dimBg: "bg-emerald-50", ring: "ring-emerald-300" },
-  Call:           { avatar: "/avatars/call.png",           color: "text-orange-700",  dimBg: "bg-orange-50",  ring: "ring-orange-300" },
+  Content:        { avatar: "/avatars/content.png",        color: "text-purple-700",  dimBg: "bg-purple-50",  ring: "ring-purple-300" },
+  Outreach:       { avatar: "/avatars/outreach.png",       color: "text-orange-700",  dimBg: "bg-orange-50",  ring: "ring-orange-300" },
+  Analytics:      { avatar: "/avatars/analytics.png",      color: "text-cyan-700",    dimBg: "bg-cyan-50",    ring: "ring-cyan-300" },
 };
 
 const claudeModels = [

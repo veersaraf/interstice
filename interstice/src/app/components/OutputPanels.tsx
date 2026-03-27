@@ -223,7 +223,7 @@ export function ContentPanel() {
   // Also include Communications agent tasks with output as content
   const commsOutputs = useMemo(() => {
     if (!tasks || !agents) return [];
-    const commsAgent = agents.find((a) => a.role === "Communications");
+    const commsAgent = agents.find((a) => a.role === "Content");
     if (!commsAgent) return [];
     return tasks
       .filter((t) => t.agentId === commsAgent._id && t.status === "done" && t.output)
@@ -233,7 +233,7 @@ export function ContentPanel() {
   // Also dev agent tasks (landing pages, code)
   const devOutputs = useMemo(() => {
     if (!tasks || !agents) return [];
-    const devAgent = agents.find((a) => a.role === "Developer");
+    const devAgent = agents.find((a) => a.role === "Outreach");
     if (!devAgent) return [];
     return tasks
       .filter((t) => t.agentId === devAgent._id && t.status === "done" && t.output)
@@ -369,7 +369,7 @@ export function OutreachPanel() {
   // Call agent tasks
   const callOutputs = useMemo(() => {
     if (!tasks || !agents) return [];
-    const callAgent = agents.find((a) => a.role === "Call");
+    const callAgent = agents.find((a) => a.role === "Analytics");
     if (!callAgent) return [];
     return tasks
       .filter((t) => t.agentId === callAgent._id && t.status === "done" && t.output)
@@ -463,14 +463,10 @@ export function AnalyticsPanel() {
   const tasks = useQuery(api.tasks.list);
   const agents = useQuery(api.agents.list);
 
-  if (!analyticsData || !tasks || !agents) {
-    return <div className="space-y-3">{[...Array(2)].map((_, i) => <div key={i} className="h-16 bg-stone-50 rounded-xl animate-pulse" />)}</div>;
-  }
-
-  // Group analytics by channel
+  // Group analytics by channel (must be before early return to preserve hook order)
   const byChannel = useMemo(() => {
     const grouped: Record<string, { metric: string; value: number }[]> = {};
-    for (const d of analyticsData) {
+    for (const d of (analyticsData ?? [])) {
       if (!grouped[d.channel]) grouped[d.channel] = [];
       grouped[d.channel].push({ metric: d.metric, value: d.value });
     }
@@ -480,9 +476,13 @@ export function AnalyticsPanel() {
   const channels = Object.keys(byChannel);
 
   // Count completed tasks and active agents as basic metrics
-  const completedTasks = tasks.filter((t) => t.status === "done").length;
-  const activeAgents = agents.filter((a) => a.status === "active").length;
-  const totalTasks = tasks.length;
+  const completedTasks = (tasks ?? []).filter((t) => t.status === "done").length;
+  const activeAgents = (agents ?? []).filter((a) => a.status === "active").length;
+  const totalTasks = (tasks ?? []).length;
+
+  if (!analyticsData || !tasks || !agents) {
+    return <div className="space-y-3">{[...Array(2)].map((_, i) => <div key={i} className="h-16 bg-stone-50 rounded-xl animate-pulse" />)}</div>;
+  }
 
   return (
     <div>

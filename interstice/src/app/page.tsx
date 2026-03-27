@@ -25,9 +25,9 @@ import { Id } from "../../convex/_generated/dataModel";
 const agentConfig: Record<string, { avatar: string; color: string; bg: string; label: string; border: string }> = {
   CEO:            { avatar: "/avatars/ceo.png",            color: "text-amber-700",   bg: "bg-amber-50",   label: "CEO",      border: "border-amber-200" },
   Research:       { avatar: "/avatars/research.png",       color: "text-blue-700",    bg: "bg-blue-50",    label: "Research",  border: "border-blue-200" },
-  Communications: { avatar: "/avatars/communications.png", color: "text-purple-700",  bg: "bg-purple-50",  label: "Comms",    border: "border-purple-200" },
-  Developer:      { avatar: "/avatars/developer.png",      color: "text-emerald-700", bg: "bg-emerald-50", label: "Dev",      border: "border-emerald-200" },
-  Call:           { avatar: "/avatars/call.png",           color: "text-orange-700",  bg: "bg-orange-50",  label: "Call",     border: "border-orange-200" },
+  Content:        { avatar: "/avatars/content.png",        color: "text-purple-700",  bg: "bg-purple-50",  label: "Content",  border: "border-purple-200" },
+  Outreach:       { avatar: "/avatars/outreach.png",       color: "text-orange-700",  bg: "bg-orange-50",  label: "Outreach", border: "border-orange-200" },
+  Analytics:      { avatar: "/avatars/analytics.png",      color: "text-cyan-700",    bg: "bg-cyan-50",    label: "Analytics",border: "border-cyan-200" },
 };
 
 /* ─── Status config ─────────────────────────────────────────── */

@@ -14,9 +14,9 @@ import {
 const roleConfig: Record<string, { initials: string; color: string; dimBg: string; ring: string }> = {
   CEO:            { initials: "CEO", color: "text-amber-700",   dimBg: "bg-amber-50",   ring: "ring-amber-300" },
   Research:       { initials: "RES", color: "text-blue-700",    dimBg: "bg-blue-50",    ring: "ring-blue-300" },
-  Communications: { initials: "COM", color: "text-purple-700",  dimBg: "bg-purple-50",  ring: "ring-purple-300" },
-  Developer:      { initials: "DEV", color: "text-emerald-700", dimBg: "bg-emerald-50", ring: "ring-emerald-300" },
-  Call:           { initials: "CAL", color: "text-orange-700",  dimBg: "bg-orange-50",  ring: "ring-orange-300" },
+  Content:        { initials: "CNT", color: "text-purple-700",  dimBg: "bg-purple-50",  ring: "ring-purple-300" },
+  Outreach:       { initials: "OUT", color: "text-orange-700",  dimBg: "bg-orange-50",  ring: "ring-orange-300" },
+  Analytics:      { initials: "ANL", color: "text-cyan-700",    dimBg: "bg-cyan-50",    ring: "ring-cyan-300" },
 };
 
 export function OrgChart() {

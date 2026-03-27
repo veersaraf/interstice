@@ -28,21 +28,21 @@ const agentCharacters: Record<string, {
     idlePos: { x: 22, y: 48 },
     meetingPos: { x: 38, y: 45 },
   },
-  Communications: {
-    avatar: "/avatars/communications.png",
+  Content: {
+    avatar: "/avatars/content.png",
     color: "#9333ea",
     idlePos: { x: 68, y: 78 },
     meetingPos: { x: 62, y: 55 },
   },
-  Developer: {
-    avatar: "/avatars/developer.png",
-    color: "#16a34a",
+  Outreach: {
+    avatar: "/avatars/outreach.png",
+    color: "#ea580c",
     idlePos: { x: 30, y: 78 },
     meetingPos: { x: 38, y: 55 },
   },
-  Call: {
-    avatar: "/avatars/call.png",
-    color: "#ea580c",
+  Analytics: {
+    avatar: "/avatars/analytics.png",
+    color: "#0891b2",
     idlePos: { x: 75, y: 48 },
     meetingPos: { x: 62, y: 45 },
   },

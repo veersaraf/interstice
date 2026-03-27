@@ -23,26 +23,26 @@ const roleConfig: Record<
     label: "Research",
     avatar: "/avatars/research.png",
   },
-  Communications: {
+  Content: {
     color: "text-purple-700",
     bg: "bg-purple-50 border-purple-200/60",
     activeBg: "bg-purple-100 border-purple-300 shadow-purple-200/40",
     label: "Content",
-    avatar: "/avatars/communications.png",
+    avatar: "/avatars/content.png",
   },
-  Developer: {
-    color: "text-green-700",
-    bg: "bg-emerald-50 border-emerald-200/60",
-    activeBg: "bg-emerald-100 border-emerald-300 shadow-emerald-200/40",
-    label: "Outreach",
-    avatar: "/avatars/developer.png",
-  },
-  Call: {
+  Outreach: {
     color: "text-orange-700",
     bg: "bg-orange-50 border-orange-200/60",
     activeBg: "bg-orange-100 border-orange-300 shadow-orange-200/40",
+    label: "Outreach",
+    avatar: "/avatars/outreach.png",
+  },
+  Analytics: {
+    color: "text-cyan-700",
+    bg: "bg-cyan-50 border-cyan-200/60",
+    activeBg: "bg-cyan-100 border-cyan-300 shadow-cyan-200/40",
     label: "Analytics",
-    avatar: "/avatars/call.png",
+    avatar: "/avatars/analytics.png",
   },
 };
 
