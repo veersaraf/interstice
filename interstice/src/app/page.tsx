@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
   ShieldCheck,
@@ -10,13 +10,15 @@ import {
   Clock,
   Zap,
   CircleDot,
+  Plus,
 } from "lucide-react";
 import { ApprovalQueue } from "./components/ApprovalQueue";
 import { GameWorld } from "./components/GameWorld";
 import { ApprovalToast } from "./components/ApprovalToast";
 import { cn, timeAgo } from "../lib/utils";
 import { useNavigate } from "./components/AppShell";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Id } from "../../convex/_generated/dataModel";
 
 /* ─── Agent config ──────────────────────────────────────────── */
 const agentConfig: Record<string, { avatar: string; color: string; bg: string; label: string; border: string }> = {
@@ -38,30 +40,46 @@ const statusConfig: Record<TaskStatus, { label: string; dot: string; text: strin
   cancelled:        { label: "Cancelled",dot: "bg-stone-300",               text: "text-stone-400", bg: "bg-stone-50" },
 };
 
-/* ─── Task Card — spacious, one per row ─────────────────────── */
+/* ─── Clean task input text ──────────────────────────────────── */
+function cleanInput(raw: string): string {
+  return raw
+    .replace(/\[OMI_UID:[^\]]+\]/g, "")
+    .replace(/\[SYNTHESIS\]/g, "")
+    .replace(/\[VOICE_COMMAND\]/g, "")
+    .trim();
+}
+
+/* ─── Task Card — spacious, clickable ───────────────────────── */
 function TaskCard({
   task,
   agent,
+  onClick,
 }: {
   task: {
     _id: string;
     input: string;
+    title?: string;
     status: string;
     agent?: string;
     priority?: string;
     _creationTime: number;
   };
   agent: { role: string; name: string } | null;
+  onClick: () => void;
 }) {
   const status = (task.status ?? "pending") as TaskStatus;
   const sc = statusConfig[status] ?? statusConfig.pending;
   const cfg = agent ? agentConfig[agent.role] : null;
+  const displayText = task.title || cleanInput(task.input);
 
   return (
-    <div className={cn(
-      "flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all hover:shadow-sm",
-      "bg-white border-stone-200/60",
-    )}>
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full text-left flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all",
+        "bg-white border-stone-200/60 hover:shadow-sm hover:border-stone-300/60 cursor-pointer",
+      )}
+    >
       {/* Status dot */}
       <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", sc.dot)} />
 
@@ -74,7 +92,7 @@ function TaskCard({
 
       {/* Task info */}
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] text-stone-800 font-medium leading-snug line-clamp-1">{task.input}</p>
+        <p className="text-[12px] text-stone-800 font-medium leading-snug line-clamp-1">{displayText}</p>
         <div className="flex items-center gap-2 mt-0.5">
           {cfg && (
             <span className={cn("text-[10px] font-medium", cfg.color)}>{cfg.label}</span>
@@ -87,6 +105,114 @@ function TaskCard({
       <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0", sc.bg, sc.text)}>
         {sc.label}
       </span>
+    </button>
+  );
+}
+
+/* ─── Create Task Modal (matches TasksPage) ─────────────────── */
+type TaskPriority = "low" | "medium" | "high" | "critical";
+
+const priorityMeta: Record<TaskPriority, { label: string; icon: string }> = {
+  critical: { label: "Critical", icon: "🔴" },
+  high:     { label: "High",     icon: "🟠" },
+  medium:   { label: "Medium",   icon: "🟡" },
+  low:      { label: "Low",      icon: "⚪" },
+};
+
+function CreateTaskModal({
+  agents,
+  tasks,
+  onClose,
+}: {
+  agents: Array<{ _id: string; role: string; name: string }>;
+  tasks: Array<{ _id: string; input: string; title?: string; parentTaskId?: string }>;
+  onClose: () => void;
+}) {
+  const createManual = useMutation(api.tasks.createManual);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [agentId, setAgentId] = useState<string>("");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!title.trim()) return;
+    setSubmitting(true);
+    try {
+      await createManual({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        agentId: agentId ? (agentId as Id<"agents">) : undefined,
+        priority,
+      });
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">Create Task</h2>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Title</label>
+            <input
+              autoFocus
+              type="text"
+              placeholder="What needs to be done?"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && title.trim()) handleSubmit(); }}
+              className="w-full h-9 px-3 rounded-lg border border-border bg-transparent text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Description</label>
+            <textarea
+              placeholder="Details, context, or instructions..."
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-transparent text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Assign to</label>
+              <select value={agentId} onChange={e => setAgentId(e.target.value)} className="w-full h-9 px-3 rounded-lg border border-border bg-transparent text-xs focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="">Unassigned</option>
+                {agents.map(a => <option key={a._id} value={a._id}>{a.role} — {a.name}</option>)}
+              </select>
+            </div>
+            <div className="w-32">
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Priority</label>
+              <select value={priority} onChange={e => setPriority(e.target.value as TaskPriority)} className="w-full h-9 px-3 rounded-lg border border-border bg-transparent text-xs focus:outline-none focus:ring-1 focus:ring-primary">
+                {(["critical", "high", "medium", "low"] as TaskPriority[]).map(p => (
+                  <option key={p} value={p}>{priorityMeta[p].icon} {priorityMeta[p].label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border bg-muted/30">
+          <button onClick={onClose} className="h-8 px-4 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">Cancel</button>
+          <button
+            onClick={handleSubmit}
+            disabled={!title.trim() || submitting}
+            className={cn(
+              "h-8 px-4 rounded-xl text-xs font-medium transition-colors shadow-sm",
+              title.trim() && !submitting ? "bg-primary text-white hover:bg-primary/90 btn-retro" : "bg-secondary text-muted-foreground cursor-not-allowed"
+            )}
+          >{submitting ? "Creating..." : "Create Task"}</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -97,7 +223,7 @@ export default function Dashboard() {
   const approvals = useQuery(api.approvals.listPending);
   const agents = useQuery(api.agents.list);
   const tasks = useQuery(api.tasks.list);
-  const activityLog = useQuery(api.activity.list, { limit: 20 });
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const pendingApprovals = approvals?.length ?? 0;
 
@@ -122,14 +248,6 @@ export default function Dashboard() {
     return [...active, ...done].slice(0, 7);
   }, [tasks]);
 
-  // Recent activity for inbox badge
-  const recentActivity = useMemo(() => {
-    if (!activityLog) return [];
-    return [...activityLog]
-      .sort((a, b) => b._creationTime - a._creationTime)
-      .slice(0, 5);
-  }, [activityLog]);
-
   return (
     <div className="h-full flex flex-col gap-3 overflow-hidden">
       {/* ─── Bento Grid ──────────────────────────────────────── */}
@@ -153,12 +271,30 @@ export default function Dashboard() {
                 </span>
               )}
             </div>
-            <button onClick={() => navigate("tasks")} className="text-[10px] text-primary hover:underline font-medium">
-              View all
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="h-7 px-2.5 rounded-xl bg-primary text-white text-[10px] font-medium flex items-center gap-1 hover:bg-primary/90 transition-colors shadow-sm btn-retro"
+              >
+                <Plus className="w-3 h-3" />
+                New Task
+              </button>
+              <button onClick={() => navigate("tasks")} className="text-[10px] text-primary hover:underline font-medium">
+                View all
+              </button>
+            </div>
           </div>
 
-          {/* Task list — spacious, max 7 */}
+          {/* Create Task Modal */}
+          {showCreateModal && agents && (
+            <CreateTaskModal
+              agents={agents}
+              tasks={tasks ?? []}
+              onClose={() => setShowCreateModal(false)}
+            />
+          )}
+
+          {/* Task list — spacious, max 7, clickable */}
           <div className="flex-1 overflow-auto p-3 space-y-2">
             {displayTasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
@@ -172,32 +308,11 @@ export default function Dashboard() {
                   key={t._id}
                   task={t}
                   agent={t.agentId ? agentMap.get(t.agentId) ?? null : null}
+                  onClick={() => navigate("tasks")}
                 />
               ))
             )}
           </div>
-
-          {/* Recent activity footer — compact inbox peek */}
-          {recentActivity.length > 0 && (
-            <div className="border-t border-stone-100 px-4 py-2.5 shrink-0">
-              <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1.5">Recent</p>
-              {recentActivity.slice(0, 3).map(a => {
-                const agent = a.agentId ? agentMap.get(a.agentId) ?? null : null;
-                const cfg = agent ? agentConfig[agent.role] : null;
-                return (
-                  <div key={a._id} className="flex items-center gap-2 py-1">
-                    {cfg?.avatar ? (
-                      <img src={cfg.avatar} alt={cfg.label} className="w-4 h-4 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-4 h-4 rounded-full bg-stone-100" />
-                    )}
-                    <p className="text-[10px] text-stone-500 line-clamp-1 flex-1">{a.content}</p>
-                    <span className="text-[9px] text-stone-300 shrink-0">{timeAgo(a._creationTime)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* ─── BOTTOM LEFT: Approvals (empty unless needed) ─── */}
