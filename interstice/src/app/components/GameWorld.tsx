@@ -19,32 +19,32 @@ const agentCharacters: Record<string, {
   CEO: {
     avatar: "/avatars/ceo.png",
     color: "#d97706",
-    idlePos: { x: 50, y: 18 },
-    meetingPos: { x: 50, y: 35 },
+    idlePos: { x: 50, y: 17 },
+    meetingPos: { x: 50, y: 40 },
   },
   Research: {
     avatar: "/avatars/research.png",
     color: "#2563eb",
-    idlePos: { x: 22, y: 48 },
-    meetingPos: { x: 38, y: 45 },
+    idlePos: { x: 21, y: 71 },
+    meetingPos: { x: 42, y: 52 },
   },
   Content: {
     avatar: "/avatars/content.png",
     color: "#9333ea",
-    idlePos: { x: 68, y: 78 },
-    meetingPos: { x: 62, y: 55 },
+    idlePos: { x: 79, y: 71 },
+    meetingPos: { x: 58, y: 52 },
   },
   Outreach: {
     avatar: "/avatars/outreach.png",
     color: "#ea580c",
-    idlePos: { x: 30, y: 78 },
-    meetingPos: { x: 38, y: 55 },
+    idlePos: { x: 19, y: 40 },
+    meetingPos: { x: 42, y: 46 },
   },
   Analytics: {
     avatar: "/avatars/analytics.png",
     color: "#0891b2",
-    idlePos: { x: 75, y: 48 },
-    meetingPos: { x: 62, y: 45 },
+    idlePos: { x: 81, y: 40 },
+    meetingPos: { x: 58, y: 46 },
   },
 };
 
@@ -421,7 +421,7 @@ function MeetingTableGlow({ visible }: { visible: boolean }) {
   if (!visible) return null;
   return (
     <div
-      className="absolute left-1/2 top-[47%] -translate-x-1/2 -translate-y-1/2 animate-fade-in"
+      className="absolute left-1/2 top-[48%] -translate-x-1/2 -translate-y-1/2 animate-fade-in"
       style={{ zIndex: 1 }}
     >
       <div className="w-28 h-28 rounded-full bg-amber-400/6 border border-amber-300/10 shadow-inner animate-pulse" />

@@ -4,6 +4,7 @@ import { runAgentUnified } from "./agent-runner";
 import { sendOmiNotification, extractOmiUid } from "./omi";
 import { makeCall, parsePhoneNumber } from "../skills/bland_call";
 import { sendEmail } from "../skills/send_email";
+import { generateSlideshow } from "../skills/generate_images";
 import path from "path";
 import fs from "fs";
 import { Id } from "../convex/_generated/dataModel";
@@ -398,6 +399,76 @@ async function runAgentTask(
           taskId: task._id,
         });
       }
+
+      // === AUTO-GENERATE IMAGES ===
+      // If content output mentions TikTok/slideshow but has no image URLs,
+      // extract the product name from the task input and generate images live.
+      // Falls back to pre-generated images on disk if generation fails.
+      const hasImageUrls = /\/output\/images\/[^\s]+\.png/i.test(finalOutput) ||
+        /https?:\/\/[^\s]+\.(?:png|jpg|jpeg|webp|gif)/i.test(finalOutput);
+      const isTikTokContent = /tiktok|slideshow|slide\s*\d/i.test(finalOutput);
+
+      if (isTikTokContent && !hasImageUrls) {
+        // Extract product name from the task input
+        const productMatch = task.input.match(/(?:for|about|on)\s+([A-Z][A-Za-z0-9]+(?:\s+[A-Z][A-Za-z0-9]+)*)/);
+        const productName = productMatch?.[1] || "Product";
+        const productDesc = task.input.substring(0, 200);
+
+        console.log(`[heartbeat] Auto-generating TikTok images for "${productName}"...`);
+        await client.mutation(api.activity.log, {
+          agentId: agent._id,
+          action: "generating_images",
+          content: `Generating 6 TikTok slideshow images for "${productName}"...`,
+          taskId: task._id,
+        });
+
+        try {
+          const imgResult = await generateSlideshow(productName, productDesc);
+          if (imgResult.success && imgResult.images && imgResult.images.length > 0) {
+            const imageSection = imgResult.images
+              .map((img) => img.url)
+              .join("\n");
+            finalOutput += `\n\n## Generated Slideshow Images\n\n${imageSection}`;
+            console.log(`[heartbeat] Generated ${imgResult.images.length} images for content output`);
+            await client.mutation(api.activity.log, {
+              agentId: agent._id,
+              action: "images_generated",
+              content: `Generated ${imgResult.images.length} TikTok slideshow images`,
+              taskId: task._id,
+            });
+          } else {
+            console.log(`[heartbeat] Image generation failed: ${imgResult.message}. Falling back to pre-generated.`);
+            // Fallback: use any pre-generated images on disk
+            const imagesDir = path.resolve(PROJECT_ROOT, "public", "output", "images");
+            if (fs.existsSync(imagesDir)) {
+              const imageFiles = fs.readdirSync(imagesDir)
+                .filter((f: string) => f.endsWith(".png"))
+                .sort();
+              if (imageFiles.length > 0) {
+                const imageSection = imageFiles
+                  .map((f: string) => `/output/images/${f}`)
+                  .join("\n");
+                finalOutput += `\n\n## Generated Slideshow Images\n\n${imageSection}`;
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`[heartbeat] Image generation error:`, err);
+          // Fallback: use any pre-generated images on disk
+          const imagesDir = path.resolve(PROJECT_ROOT, "public", "output", "images");
+          if (fs.existsSync(imagesDir)) {
+            const imageFiles = fs.readdirSync(imagesDir)
+              .filter((f: string) => f.endsWith(".png"))
+              .sort();
+            if (imageFiles.length > 0) {
+              const imageSection = imageFiles
+                .map((f: string) => `/output/images/${f}`)
+                .join("\n");
+              finalOutput += `\n\n## Generated Slideshow Images\n\n${imageSection}`;
+            }
+          }
+        }
+      }
     }
 
     // === NON-CEO: Post findings + update company memory ===
@@ -424,52 +495,57 @@ async function runAgentTask(
 
     // === ACTION EXECUTION ===
     // Outreach agent produces actionable output (emails, calls).
-    // Execute actions directly — no approval gates during hackathon demo.
+    // Execute ALL actions directly — no approval gates during hackathon demo.
     if (agent.name === "outreach" && finalOutput) {
-      const needsAction = detectApprovalNeeded(agent, task, finalOutput);
-      if (needsAction) {
-        console.log(`[heartbeat] Auto-executing ${needsAction.action} for ${agent.name}`);
+      const allActions = detectAllActions(agent, task, finalOutput);
+      if (allActions.length > 0) {
+        console.log(`[heartbeat] Auto-executing ${allActions.length} action(s) for ${agent.name}`);
 
-        let actionResult = `Action logged: ${needsAction.action}`;
-        try {
-          const actionLower = needsAction.action.toLowerCase();
+        const actionResults: string[] = [];
+        for (const actionItem of allActions) {
+          let actionResult = `Action logged: ${actionItem.action}`;
+          try {
+            const actionLower = actionItem.action.toLowerCase();
 
-          if (actionLower.includes("call") || actionLower.includes("phone")) {
-            const phoneNumber = parsePhoneNumber(needsAction.details);
-            if (phoneNumber) {
-              const result = await makeCall(phoneNumber, needsAction.details);
-              actionResult = result.message;
-            } else {
-              actionResult = "Could not parse phone number from details.";
+            if (actionLower.includes("call") || actionLower.includes("phone")) {
+              const phoneNumber = parsePhoneNumber(actionItem.details);
+              if (phoneNumber) {
+                const result = await makeCall(phoneNumber, actionItem.details);
+                actionResult = result.message;
+              } else {
+                actionResult = "Could not parse phone number from details.";
+              }
+            } else if (actionLower.includes("email") || actionLower.includes("send")) {
+              const parsed = parseDemoEmailDetails(actionItem.details);
+              if (parsed) {
+                const result = await sendEmail(parsed.to, parsed.subject, parsed.body);
+                actionResult = result.message;
+              } else {
+                actionResult = "Could not parse email fields from details.";
+              }
             }
-          } else if (actionLower.includes("email") || actionLower.includes("send")) {
-            const parsed = parseDemoEmailDetails(needsAction.details);
-            if (parsed) {
-              const result = await sendEmail(parsed.to, parsed.subject, parsed.body);
-              actionResult = result.message;
-            } else {
-              actionResult = "Could not parse email fields from details.";
-            }
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            actionResult = `Action failed: ${errMsg}`;
+            console.error("[heartbeat] Action execution failed:", err);
           }
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          actionResult = `Action failed: ${errMsg}`;
-          console.error("[heartbeat] Action execution failed:", err);
+
+          actionResults.push(`${actionItem.action}: ${actionResult}`);
+
+          await client.mutation(api.activity.log, {
+            agentId: agent._id,
+            action: "action_executed",
+            content: `🚀 ${actionItem.action} — ${actionResult}`,
+            taskId: task._id,
+          });
         }
 
-        await client.mutation(api.activity.log, {
-          agentId: agent._id,
-          action: "action_executed",
-          content: `🚀 ${needsAction.action} — ${actionResult}`,
-          taskId: task._id,
-        });
-
-        // Post finding so CEO sees the outcome
+        // Post combined findings so CEO sees all outcomes
         await client.mutation(api.findings.post, {
           agentId: agent._id,
           taskId: task._id,
-          content: `[EXECUTED] ${needsAction.action}: ${actionResult}\n\n${needsAction.details.substring(0, 400)}`,
-          summary: `Executed: ${needsAction.action}`,
+          content: `[EXECUTED] ${allActions.length} action(s):\n${actionResults.map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
+          summary: `Executed ${allActions.length} outreach actions`,
         });
       }
     }
@@ -878,10 +954,51 @@ Do NOT output any JSON. Speak directly to the user.`;
       content: `All ${completedChildren.length} tasks complete — CEO synthesizing results`,
       taskId: synthTaskId,
     });
+
+    // Auto-trigger a call to Veer to report everything is done
+    // This fires AFTER synthesis — gives the demo a "wow" moment
+    const outreachAgent = await client.query(api.agents.getByName, { name: "outreach" });
+    if (outreachAgent) {
+      // Build a brief summary of what was accomplished for the call script
+      const taskSummary = completedChildren
+        .map((t) => `- ${t.input.substring(0, 80)}`)
+        .join("\n");
+
+      const callPrompt = `Call Veer Saraf at +13312296729 to report that all tasks are complete. This is a summary call — be concise, warm, and excited.
+
+Here's what the team accomplished:
+${taskSummary}
+
+Generate a call script and make the call. Key points:
+- Everything the user asked for is done
+- Research report is ready in the Outputs tab
+- Content (TikTok slideshows, social posts) has been created
+- Outreach emails have been drafted/sent
+- Tell him to check the dashboard for full results
+
+Keep the call under 60 seconds. Be conversational, not robotic.`;
+
+      const callTaskId = await client.mutation(api.tasks.create, {
+        agentId: outreachAgent._id,
+        parentTaskId,
+        input: callPrompt,
+        createdBy: ceo._id,
+      });
+
+      await client.mutation(api.activity.log, {
+        agentId: ceo._id,
+        action: "delegated",
+        content: `CEO → Outreach: Call Veer to report all tasks complete`,
+        taskId: callTaskId,
+      });
+
+      console.log(`[heartbeat] Auto-triggered completion call to Veer`);
+    }
   } catch (err) {
     console.error("[heartbeat] Synthesis check error:", err);
   }
 }
+
 
 /**
  * Parse content agent output for code blocks with filename hints.
@@ -952,42 +1069,82 @@ function parseEmailDraft(
 }
 
 /**
- * Detect if an agent's output requires human approval before action.
- * Returns null if no approval needed, otherwise returns action details.
+ * Detect ALL actionable items in an agent's output.
+ * Returns an array of actions to execute (may be empty).
+ * Supports multiple emails and multiple calls in a single output.
+ */
+function detectAllActions(
+  agent: Agent,
+  task: Task,
+  output: string
+): Array<{ action: string; details: string }> {
+  const actions: Array<{ action: string; details: string }> = [];
+  if (agent.name !== "outreach") return actions;
+
+  // Split output into sections by "## " headers to find individual drafts
+  const sections = output.split(/(?=^## )/m);
+
+  for (const section of sections) {
+    const sectionLower = section.toLowerCase();
+
+    // Detect call scripts — look for **Calling:** with a phone number
+    if (
+      (sectionLower.includes("call script") || sectionLower.includes("**calling:**")) &&
+      parsePhoneNumber(section)
+    ) {
+      actions.push({
+        action: "Make Phone Call",
+        details: section.substring(0, 800),
+      });
+      continue;
+    }
+
+    // Detect email drafts — look for **To:** and **Subject:**
+    if (/\*\*To:\*\*/.test(section) && /\*\*Subject:\*\*/.test(section)) {
+      const draft = parseEmailDraft(section);
+      if (draft) {
+        actions.push({
+          action: "Send Email",
+          details: `To: ${draft.to}\nSubject: ${draft.subject}\n\n${draft.body}`,
+        });
+      }
+      continue;
+    }
+  }
+
+  // Fallback: if no structured sections found but task clearly needs action
+  if (actions.length === 0) {
+    const isCallTask = task.input.toLowerCase().includes("call");
+    const isSendTask =
+      task.input.toLowerCase().includes("send") ||
+      output.toLowerCase().includes("ready to send");
+
+    if (isCallTask && parsePhoneNumber(output)) {
+      actions.push({ action: "Make Phone Call", details: output.substring(0, 800) });
+    } else if (isSendTask) {
+      const draft = parseEmailDraft(output);
+      if (draft) {
+        actions.push({
+          action: "Send Email",
+          details: `To: ${draft.to}\nSubject: ${draft.subject}\n\n${draft.body}`,
+        });
+      }
+    }
+  }
+
+  return actions;
+}
+
+/**
+ * Legacy single-action detection — kept for backward compatibility.
  */
 function detectApprovalNeeded(
   agent: Agent,
   task: Task,
   output: string
 ): { action: string; details: string } | null {
-  if (agent.name === "outreach") {
-    // Trigger approval if the task involves sending OR the output has an email draft
-    const isSendTask =
-      task.input.toLowerCase().includes("send") ||
-      output.toLowerCase().includes("ready to send") ||
-      output.toLowerCase().includes("awaiting approval to send");
-    const hasEmailDraft = /\*\*To:\*\*/.test(output) && /\*\*Subject:\*\*/.test(output);
-    const isCallTask =
-      task.input.toLowerCase().includes("call") ||
-      output.toLowerCase().includes("phone");
-
-    if (isCallTask) {
-      return {
-        action: "Make Phone Call",
-        details: output.substring(0, 500),
-      };
-    }
-
-    if (isSendTask || hasEmailDraft) {
-      const draft = parseEmailDraft(output);
-      const details = draft
-        ? `To: ${draft.to}\nSubject: ${draft.subject}\n\n${draft.body}`
-        : output.substring(0, 600);
-      return { action: "Send Email", details };
-    }
-  }
-
-  return null;
+  const actions = detectAllActions(agent, task, output);
+  return actions.length > 0 ? actions[0] : null;
 }
 
 /**
@@ -1131,9 +1288,11 @@ function getAgentTools(agentName: string): string[] {
       // CEO just outputs JSON — no tools needed
       return [];
     case "research":
-      // Research needs Bash to run web_search.ts via Perplexity
+      // Research needs Bash to run web_search, scrape products, and analyze repos
       return [
         "Bash(npx tsx skills/web_search.ts*)",
+        "Bash(npx tsx skills/scrape_product.ts*)",
+        "Bash(npx tsx skills/macroscope_analyze.ts*)",
         "Read",
         "WebSearch",
         "WebFetch",

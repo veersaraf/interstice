@@ -71,7 +71,7 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
         {/* Brand */}
         <div className="h-14 px-4 flex items-center shrink-0 border-b border-sidebar-border">
           <img
-            src="/avatars/intersticelogo.jpg"
+            src="/avatars/logo.png"
             alt="Interstice"
             className="h-7 w-auto object-contain rounded-lg"
           />

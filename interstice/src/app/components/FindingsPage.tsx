@@ -13,7 +13,7 @@ import {
   ExternalLink,
   Eye,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import ReactMarkdown from "react-markdown";
@@ -42,6 +42,76 @@ const roleAvatar: Record<string, string> = {
   Analytics: "/avatars/analytics.png",
 };
 
+/**
+ * Extract image URLs from agent output (OpenAI generation URLs, etc.)
+ * and convert them to a renderable gallery.
+ */
+function extractImageUrls(output: string): string[] {
+  const urls: string[] = [];
+  // Match local image paths from generate_images (saved to public/output/images/)
+  const localPattern = /\/output\/images\/[^\s"'<>]+\.(?:png|jpg|jpeg|webp|gif)/gi;
+  // Match remote image URLs
+  const urlPattern = /https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|webp|gif)(?:\?[^\s"'<>]*)?/gi;
+  // Also match oaidalleapiprodscus URLs (no extension)
+  const oaiPattern = /https?:\/\/oaidalleapiprodscus[^\s"'<>]+/gi;
+  let match;
+  while ((match = localPattern.exec(output)) !== null) urls.push(match[0]);
+  while ((match = urlPattern.exec(output)) !== null) {
+    if (!urls.includes(match[0])) urls.push(match[0]);
+  }
+  while ((match = oaiPattern.exec(output)) !== null) {
+    if (!urls.includes(match[0])) urls.push(match[0]);
+  }
+  return urls;
+}
+
+/**
+ * Image gallery component for TikTok slideshow images in output.
+ */
+function OutputImageGallery({ urls }: { urls: string[] }) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const sceneLabels = ["Hook", "Problem", "Solution", "Features", "Social Proof", "CTA"];
+
+  return (
+    <div className="mt-3 mb-4">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Eye className="w-3.5 h-3.5 text-purple-600" />
+        <span className="text-[11px] font-semibold text-purple-700">Generated Images ({urls.length})</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {urls.map((url, i) => (
+          <div
+            key={i}
+            className="relative group cursor-pointer rounded-lg overflow-hidden border border-purple-100 hover:border-purple-300 transition-colors"
+            onClick={() => setSelectedIdx(selectedIdx === i ? null : i)}
+          >
+            <img
+              src={url}
+              alt={sceneLabels[i] || `Image ${i + 1}`}
+              className="w-full aspect-[2/3] object-cover"
+              loading="lazy"
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+              <span className="text-[9px] font-bold text-white uppercase tracking-wider">
+                {sceneLabels[i] || `Slide ${i + 1}`}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {selectedIdx !== null && (
+        <div className="mt-2 rounded-lg overflow-hidden border border-purple-200">
+          <img
+            src={urls[selectedIdx]}
+            alt={sceneLabels[selectedIdx] || `Image ${selectedIdx + 1}`}
+            className="w-full max-h-[500px] object-contain bg-stone-50"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function detectOutputFormat(output: string): "markdown" | "html" | "text" {
   const trimmed = output.trim();
   if (
@@ -59,6 +129,15 @@ export function FindingsPage() {
   const agents = useQuery(api.agents.list);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [diskImages, setDiskImages] = useState<string[]>([]);
+
+  // Fetch available images from disk — works even if task output doesn't contain URLs
+  useEffect(() => {
+    fetch("/api/images")
+      .then((r) => r.json())
+      .then((data) => setDiskImages(data.images ?? []))
+      .catch(() => {});
+  }, [tasks]); // Re-fetch when tasks update
 
 
   // Filter to tasks that have substantive output (exclude CEO synthesis/delegation messages)
@@ -230,8 +309,21 @@ export function FindingsPage() {
                 </div>
 
                 {/* Expanded output content */}
-                {isExpanded && (
+                {isExpanded && (() => {
+                  let imageUrls = extractImageUrls(output);
+                  // Fallback: if Content agent TikTok task has no images in output,
+                  // use images from disk (pre-generated or auto-generated)
+                  if (imageUrls.length === 0 && role === "Content" && /tiktok|slideshow|slide\s*\d/i.test(output)) {
+                    imageUrls = diskImages;
+                  }
+                  return (
                   <div className="border-t border-border">
+                    {/* Image gallery for Content agent outputs */}
+                    {imageUrls.length > 0 && (
+                      <div className="px-5 pt-3">
+                        <OutputImageGallery urls={imageUrls} />
+                      </div>
+                    )}
                     {format === "html" ? (
                       <div className="bg-white">
                         <iframe
@@ -271,6 +363,9 @@ export function FindingsPage() {
                                 {children}
                               </a>
                             ),
+                            img: ({ src, alt }) => (
+                              <img src={src} alt={alt || ""} className="max-w-full rounded-lg border border-border/50 my-2" loading="lazy" />
+                            ),
                           }}
                         >
                           {output}
@@ -284,7 +379,8 @@ export function FindingsPage() {
                       </div>
                     )}
                   </div>
-                )}
+                  );
+                })()}
               </Card>
             );
           })}

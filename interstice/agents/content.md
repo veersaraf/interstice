@@ -732,7 +732,14 @@ Post content to TikTok, X/Twitter, or LinkedIn as drafts via Postiz.
 
 **Usage (run via bash):**
 ```bash
+# Text-only post (tweet, LinkedIn, etc.)
 npx tsx skills/postiz_post.ts "Your post caption/content here"
+
+# TikTok slideshow with images (pass comma-separated image URLs from generate_images)
+npx tsx skills/postiz_post.ts --images "url1,url2,url3,url4,url5,url6" "TikTok caption with #hashtags"
+
+# List recent posts/drafts
+npx tsx skills/postiz_post.ts --list
 ```
 
 **What it returns:** Post ID and status (created as draft).
