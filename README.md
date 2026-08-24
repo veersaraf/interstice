@@ -48,7 +48,7 @@ Interstice is three cooperating pieces around a realtime database:
                                                           │ • claims tasks   │
                                                           │ • spawns agents  │
                                                           │ • runs skills    │
-                                                          └───────┬──────────┐
+                                                          └───────┬──────────┘
                                                                   │ spawn subprocess
                                                           ┌───────┴──────────┐
                                                           │  Agent CLI       │
