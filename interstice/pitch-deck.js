@@ -695,7 +695,8 @@ const SANS = "Calibri";
 // ============================================================
 // GENERATE
 // ============================================================
-const outputPath = "/Users/veersaraf/Desktop/interstice/interstice/Interstice-Pitch-Deck.pptx";
+const path = require("path");
+const outputPath = path.join(__dirname, "Interstice-Pitch-Deck.pptx");
 pres.writeFile({ fileName: outputPath }).then(() => {
   console.log("Pitch deck saved to: " + outputPath);
 }).catch(err => {
