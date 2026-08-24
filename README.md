@@ -48,7 +48,7 @@ Interstice is three cooperating pieces around a realtime database:
                                                           │ • claims tasks   │
                                                           │ • spawns agents  │
                                                           │ • runs skills    │
-                                                          └───────┬──────────┘
+                                                          └───────┬──────────┐
                                                                   │ spawn subprocess
                                                           ┌───────┴──────────┐
                                                           │  Agent CLI       │
@@ -68,10 +68,9 @@ Interstice is three cooperating pieces around a realtime database:
 5. handles the result: CEO output is parsed as either a delegation (creates child tasks) or a direct/synthesis response; specialist output is posted to findings and appended to company memory; Outreach output can trigger real calls/emails,
 6. triggers CEO synthesis once all children of a parent task are done, and routes that synthesis back to OMI if the command originated there.
 
-**Agents are CLI subprocesses, not API calls.** Each agent run spawns a coding-agent CLI in non-interactive mode (`<cli> exec --json`), streams back JSON events, and can resume a prior session via a stored session ID so an agent picks up where it left off. An adapter layer (`lib/agent-runner.ts`) abstracts the backend behind a common interface; the concrete runners are `lib/codex-runner.ts` and `lib/claude-runner.ts`.
+**Agents are CLI subprocesses, not API calls.** Each agent run spawns a coding-agent CLI in non-interactive mode (`<cli> exec --json`), streams back JSON events, and can resume a prior session via a stored session ID so an agent picks up where it left off. An adapter layer (`lib/agent-runner.ts`) abstracts the backend behind a common interface.
 
-> [!IMPORTANT]
-> Despite the `claude-runner` filename and "Claude" naming in some docs, the current code runs the **`codex` CLI with model `gpt-5.3-codex`** for every agent — `claude-runner.ts` itself spawns `codex`, and the heartbeat calls the runner with `adapter: "codex"`. You must have the `codex` CLI installed and authenticated for agents to run. [VERIFY: is Codex the intended long-term backend, or is Claude meant to be re-enabled? The README currently describes what the code does — Codex.]
+The current code runs the **`codex` CLI with model `gpt-5.3-codex`** for every agent. You must have the `codex` CLI installed and authenticated for agents to run.
 
 **Skills (`skills/`)** are standalone TypeScript files, each runnable on its own (`npx tsx skills/<name>.ts ...`) and importable by the heartbeat. Adding a capability means dropping in one file. Current skills: `web_search` (Perplexity), `bland_call` (Bland AI), `send_email` (Resend or SMTP), `generate_images` (OpenAI `gpt-image-1`), `postiz_post`, `scrape_product`, `macroscope_analyze` (GitHub API), and `airbyte_fetch`. `lib/auth0-vault.ts` provides OAuth token brokering for skills that need third-party tokens.
 
@@ -97,7 +96,7 @@ Each agent's system prompt lives in `interstice/agents/<name>.md`. The roster is
 
 - **Node.js 20+**
 - A **Convex** account (`npx convex dev` will prompt you to log in and provision a deployment)
-- The **`codex` CLI**, installed and authenticated — agents will not run without it. [VERIFY: exact install/auth steps for the `codex` CLI you use — link the tool's docs here.]
+- The **[Codex CLI](https://github.com/openai/codex)**, installed and authenticated — agents will not run without it
 - API keys for whichever skills you want to exercise (see [Configuration](#configuration)). With no keys, skills fall back to log-only / no-op behavior where possible.
 - For voice: an **OMI** device + app, and a public tunnel (e.g. ngrok) so OMI can reach your local webhook.
 
@@ -154,14 +153,11 @@ What happens next, visible live on the dashboard:
 
 Generated artifacts land in `interstice/output/` (the repo includes a sample, `output/staplers.html`).
 
-<!-- TODO: Veer add screenshot -->
-<!-- The dashboard (bento layout: org chart / task board / approvals / activity feed) is the visual centerpiece — a screenshot or short GIF of a live command running belongs here. -->
-
 ---
 
 ## Configuration
 
-All config is via `.env.local` inside `interstice/` (git-ignored; there is **no `.env.example`** in the repo yet — [VERIFY: consider adding one]).
+All config is via `.env.local` inside `interstice/` (git-ignored). Copy the table below into that file.
 
 **Required:**
 
@@ -201,11 +197,11 @@ All config is via `.env.local` inside `interstice/` (git-ignored; there is **no 
 
 Interstice is a **HackHayward 2026 prototype**. It works end to end, but be aware of the following before building on it:
 
-- **No automated tests.** There is no test suite in the repository. Correctness is currently demonstrated by running the live demo. [VERIFY: worth adding tests around the CEO delegation-JSON parsing and the heartbeat dependency ordering — those are the load-bearing, testable pieces.]
-- **Approval gates are bypassed in the demo path.** The schema, dashboard approval queue, `/api/approve` route, and even voice approve/deny all exist — but the heartbeat currently **auto-executes** Outreach actions (real emails and phone calls) without waiting for approval. The code says as much: *"Approval gates disabled for hackathon demo."* Re-enabling them is a documented one-block change in `lib/heartbeat.ts`. Treat outbound side effects with care until then.
+- **No automated tests.** Correctness is currently demonstrated by running the live demo.
+- **Approval gates are bypassed in the demo path.** The schema, dashboard approval queue, `/api/approve` route, and even voice approve/deny all exist — but the heartbeat currently **auto-executes** Outreach actions (real emails and phone calls) without waiting for approval. Re-enabling them is a one-block change in `lib/heartbeat.ts`. Treat outbound side effects with care until then.
 - **Agent memory across restarts is partial.** Session IDs are stored for resume, but the heartbeat clears them on startup, so cross-restart continuity relies on `memory/company.md` and the Convex findings/activity history rather than live agent sessions.
-- **Repository layout is untidy.** The real app is in `interstice/`, but the repo root also contains older, partial copies of `agents/`, `convex/`, `lib/`, and `memory/` that are not what runs. [VERIFY: these root-level duplicates look stale and could be removed to avoid confusion.]
-- **Perplexity integration** uses the standard `chat/completions` endpoint (`skills/web_search.ts`), not the Agent API described in the pitch materials. [VERIFY: reconcile the docs with the code, or upgrade the skill.]
+- **Repository layout is nested.** The app that runs is in `interstice/`. Older copies of `agents/`, `convex/`, `lib/`, and `memory/` also sit at the repo root and are not what the dashboard uses.
+- **Perplexity integration** uses the standard `chat/completions` endpoint (`skills/web_search.ts`).
 
 ## License
 
